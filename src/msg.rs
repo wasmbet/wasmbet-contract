@@ -15,8 +15,8 @@ pub struct InitMsg {
 pub enum HandleMsg {
     Ruler {
         phrase: String,
-        prediction_number: i32,
-        position: i32,
+        prediction_number: u32,
+        position: String,
         bet_amount: Uint128,
     },
 }

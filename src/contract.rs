@@ -19,8 +19,8 @@ pub fn init<S: Storage, A: Api, Q: Querier>(
 
     let state = State {
         contract_owner: deps.api.canonical_address(&env.message.sender)?,
-        pot_pool: 0,
-        fee_pool: 0, 
+        pot_pool: Uint128::from(0u128),
+        fee_pool: Uint128::from(0u128), 
         seed: msg.seed.as_bytes().to_vec(),
         min_credit: msg.min_credit,
         max_credit: msg.max_credit,
@@ -55,7 +55,7 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
 
 
 
-fn can_deposit(env: &Env, state: &State, bet_amount: u128) -> StdResult<i64> {
+fn can_deposit(env: &Env, state: &State, bet_amount: u128) -> StdResult<Uint128> {
     let deposit: Uint128;
 
     if env.message.sent_funds.len() == 0 {
@@ -74,32 +74,36 @@ fn can_deposit(env: &Env, state: &State, bet_amount: u128) -> StdResult<i64> {
             return Err(StdError::generic_err("GTFO DIRTY DEEP STACKER"));
         }
     }
-    Ok(deposit.u128() as i64)
+    Ok(deposit)
 }
 
 pub fn try_ruler<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
     phrase: String,
-    prediction_number: i32,
-    position: i32,
+    prediction_number: u32,
+    position: String,
     bet_amount: &Uint128,
 ) -> StdResult<HandleResponse> {
 
 
     //1. pool amount check
     let state_pool = config_read(&deps.storage).load()?;
-    if state_pool.pot_pool < 1 {
+    if state_pool.pot_pool < Uint128::from(1u128) {
         return Err(StdError::generic_err(
             "Lack of reserves",
         ));
     }
 
 
-    //2. position check
-    if position > 2 {
+    //2. position check.
+    if &position[..] == ""{
         return Err(StdError::generic_err(
-            "position expected, over and under",
+            "position empty",
+        ));
+    }else if &position[..] != "under" && &position[..] != "over"{
+        return Err(StdError::generic_err(
+            "position not under/over",
         ));
     }
 
@@ -131,7 +135,7 @@ pub fn try_ruler<S: Storage, A: Api, Q: Querier>(
     //5.game state setting
     let mut room_store = PrefixedStorage::new(ROOM_KEY, &mut deps.storage);
     let raw_address = deps.api.canonical_address(&env.message.sender)?;
-    let rand_entropy: Vec<u8> = Vec::new();
+    let mut rand_entropy: Vec<u8> = Vec::new();
 
 
     //6. rand setting
@@ -145,40 +149,43 @@ pub fn try_ruler<S: Storage, A: Api, Q: Querier>(
 
 
     //7. lucky_number apply
-    let mut state = config(&mut deps.storage).load()?;
     let mut rng: Prng = Prng::new(&state.seed, &rand_entropy);
-    let Lucky_Number = rng.select_one_of(100);
+    let lucky_number = rng.select_one_of(100);
 
 
     //8. prediction_num/lucky_num is position check
-    // 0: over , 1: under
     // 0: win , 1: lose
-    let winner = 1;
-    match position {
-        0 => {
-            if Lucky_Number > prediction_number{
-                winner = 0;
+    let win_results;
+    match &position[..] {
+        "over" => {
+            if lucky_number > prediction_number{
+                win_results = 0;
             }else{
-                winner = 1;
+                win_results = 1;
             };
         },
-        1 => {
-            if Lucky_Number < prediction_number{
-                winner = 0;
+        "under" => {
+            if lucky_number < prediction_number{
+                win_results = 0;
             }else{
-                winner = 1;
+                win_results = 1;
             }
+        },
+        _ => {
+            return Err(StdError::generic_err(
+                "position invalid",
+            ));
         }
     }
     //9. room state save
     let raw_room = to_vec(&room {
         start_time: env.block.time,
-        entropy: Vec::default(),
-        Prediction_number: prediction_number,
-        Lucky_Number: Lucky_Number,
+        entropy: rand_entropy,
+        prediction_number: prediction_number,
+        lucky_number: lucky_number,
         position: position,
-        results: winner,
-        bet_amount: bet_amount,
+        results: win_results,
+        bet_amount: *bet_amount,
     })?;
 
     room_store.set(raw_address.as_slice(), &raw_room); 

@@ -31,12 +31,11 @@ impl Prng {
     }
 
     /// Return an item from an iterable structure
-    pub fn select_one_of<T: Clone + Iterator>(&mut self, mut t: T) -> Option<T::Item> {
-        let num_of_items = t.clone().count() - 1;
+    pub fn select_one_of(&mut self, t: u32) -> u32 {
 
-        let rand = self.random_between(0, num_of_items as u32);
+        let rand = self.random_between(0, t);
 
-        return t.nth(rand as usize);
+        return rand;
     }
 
     fn rand_u32(&mut self) -> u32 {

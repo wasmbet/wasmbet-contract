@@ -11,18 +11,18 @@ pub static ROOM_KEY: &[u8] = b"room";
 pub struct room {
     pub start_time: u64,
     pub entropy: Vec<u8>,
-    pub Prediction_number: i32,
-    pub Lucky_Number: i32,
-    pub position: i32,
-    pub results: i32,
+    pub prediction_number: u32,
+    pub lucky_number: u32,
+    pub position: String,
+    pub results: u8,
     pub bet_amount: Uint128,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct State {
     pub contract_owner: CanonicalAddr,
-    pub pot_pool: i64,
-    pub fee_pool: i64,
+    pub pot_pool: Uint128,
+    pub fee_pool: Uint128,
     pub seed : Vec<u8>,
     pub min_credit: u128,
     pub max_credit: u128,
