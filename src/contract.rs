@@ -4,7 +4,7 @@ use cosmwasm_std::{
 };
 use serde_json_wasm as serde_json;
 use crate::msg::{CountResponse, HandleMsg, InitMsg, QueryMsg};
-use crate::state::{State, room,ROOM_KEY,CONFIG_KEY,config, config_read};
+use crate::state::{State, Room,ROOM_KEY,CONFIG_KEY,config, config_read};
 use crate::rand::Prng;
 
 use cosmwasm_storage::{PrefixedStorage, ReadonlyPrefixedStorage};
@@ -178,7 +178,7 @@ pub fn try_ruler<S: Storage, A: Api, Q: Querier>(
         }
     }
     //9. room state save
-    let raw_room = to_vec(&room {
+    let raw_room = to_vec(&Room {
         start_time: env.block.time,
         entropy: rand_entropy,
         prediction_number: prediction_number,

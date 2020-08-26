@@ -8,7 +8,7 @@ pub static CONFIG_KEY: &[u8] = b"config";
 pub static ROOM_KEY: &[u8] = b"room";
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct room {
+pub struct Room {
     pub start_time: u64,
     pub entropy: Vec<u8>,
     pub prediction_number: u32,
