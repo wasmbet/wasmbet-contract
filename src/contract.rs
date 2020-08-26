@@ -1,33 +1,31 @@
 use cosmwasm_std::{
     to_binary, Api, Binary, Env, Extern, HandleResponse, InitResponse, Querier, StdError,
-    StdResult, Storage,CanonicalAddr
+    StdResult, Storage,CanonicalAddr,Uint128,to_vec,HumanAddr,Coin , ReadonlyStorage
 };
-
+use serde_json_wasm as serde_json;
 use crate::msg::{CountResponse, HandleMsg, InitMsg, QueryMsg};
-use crate::state::{config, config_read, State, Room_State};
+use crate::state::{State, room,ROOM_KEY,CONFIG_KEY,config, config_read};
+use crate::rand::Prng;
+
+use cosmwasm_storage::{PrefixedStorage, ReadonlyPrefixedStorage};
+use sha2::{Digest, Sha256};
+
 
 pub fn init<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
     msg: InitMsg,
 ) -> StdResult<InitResponse> {
-    let room = Room_State {
-        room_owner: CanonicalAddr::default(),
-        seed : Vec::default(),
-        start_time: env.block.time,
-        entropy: Vec::default(),
-        Prediction_number: 0,
-        Lucky_Number: 0,
-        position: String::default(),
-        results: String::default(),
-    };
+
     let state = State {
         contract_owner: deps.api.canonical_address(&env.message.sender)?,
-        player_room: Vec::default(),
+        pot_pool: 0,
+        fee_pool: 0, 
+        seed: msg.seed.as_bytes().to_vec(),
+        min_credit: msg.min_credit,
+        max_credit: msg.max_credit,
     };
-
     config(&mut deps.storage).save(&state)?;
-
     Ok(InitResponse::default())
 }
 
@@ -37,121 +35,161 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
     msg: HandleMsg,
 ) -> StdResult<HandleResponse> {
     match msg {
-        HandleMsg::Ruler {player,seed, Prediction_number, position} => try_ruler(deps, env),
+        HandleMsg::Ruler {phrase, prediction_number, position,bet_amount} => try_ruler(
+            deps, 
+            env,
+            phrase,
+            prediction_number,
+            position,
+            &bet_amount,
+        ),
     }
+}
+//State Future features: change support
+//fn change_min_credit
+//fn change_max_credit
+//fn winer_payout
+//fn owner_pot_deposit
+//fn owner_pot_refund
+//fn owner_fee_refund
+
+
+
+fn can_deposit(env: &Env, state: &State, bet_amount: u128) -> StdResult<i64> {
+    let deposit: Uint128;
+
+    if env.message.sent_funds.len() == 0 {
+        return Err(StdError::generic_err("SHOW ME THE MONEY"));
+    } else {
+        if env.message.sent_funds[0].denom != "ukrw" {
+            return Err(StdError::generic_err("WRONG MONEY"));
+        }
+        deposit = env.message.sent_funds[0].amount;
+
+        if deposit.u128() + bet_amount < state.min_credit {
+            return Err(StdError::generic_err("GTFO DIRTY SHORT STACKER"));
+        }
+
+        if deposit.u128() + bet_amount > state.max_credit {
+            return Err(StdError::generic_err("GTFO DIRTY DEEP STACKER"));
+        }
+    }
+    Ok(deposit.u128() as i64)
 }
 
 pub fn try_ruler<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
-    _env: Env,
-) -> StdResult<HandleResponse> {
-    let mut state = config(&mut deps.storage).load()?;
-    let mut game_room = state.player_room;
-    game_room.seed
-
-    //rand
-    //deposit
-    //Distribution of prizes based on results
-
-
-    config(&mut deps.storage).update(|mut state| {
-        state.count += 1;
-        Ok(state)
-    })?;
-
-    Ok(HandleResponse::default())
-}
-
-pub fn try_reset<S: Storage, A: Api, Q: Querier>(
-    deps: &mut Extern<S, A, Q>,
     env: Env,
-    count: i32,
+    phrase: String,
+    prediction_number: i32,
+    position: i32,
+    bet_amount: &Uint128,
 ) -> StdResult<HandleResponse> {
-    let api = &deps.api;
-    config(&mut deps.storage).update(|mut state| {
-        if api.canonical_address(&env.message.sender)? != state.owner {
-            return Err(StdError::unauthorized());
-        }
-        state.count = count;
-        Ok(state)
-    })?;
-    Ok(HandleResponse::default())
-}
 
-fn rand<S: Storage, A: Api, Q: Querier>(
-    deps: &mut Extern<S, A, Q>,
-    env: Env,
-    winner_to_select: u8,
-) -> StdResult<HandleResponse> {
-    // TODO Check if contract has expired
 
-    let mut state = config(&mut deps.storage).load()?;
-
-    // add this if you don't want to allow choosing an alternative winner
-    // if state.winner != CanonicalAddr::default() {
-    //     // game already ended
-    //     return Ok(HandleResponse::default());
-    // }
-
-    if env.message.sender != state.contract_owner {
-        return Err(throw_gen_err("You cannot trigger lottery end unless you're the owner!".to_string()));
-    }
-    // let contract_addr: HumanAddr = deps.api.human_address(&env.contract.address)?;
-
-    // this way every time we call the end_lottery function we will get a different result. Plus it's going to be pretty hard to
-    // predict the exact time of the block, so less chance of cheating
-    state.entropy.extend_from_slice(&env.block.time.to_be_bytes());
-
-    let mut rng: Prng = Prng::new(&state.seed, &state.entropy);
-
-    let winner = rng.select_one_of(state.items.clone().into_iter());
-
-    if winner.is_none() {
-        return Err(throw_gen_err(format!("Fucking address is empty wtf")));
+    //1. pool amount check
+    let state_pool = config_read(&deps.storage).load()?;
+    if state_pool.pot_pool < 1 {
+        return Err(StdError::generic_err(
+            "Lack of reserves",
+        ));
     }
 
-    let unwrapped = winner.unwrap();
 
-    match winner_to_select {
+    //2. position check
+    if position > 2 {
+        return Err(StdError::generic_err(
+            "position expected, over and under",
+        ));
+    }
+
+
+    //3. prediction check
+    if prediction_number > 98 {
+        return Err(StdError::generic_err(
+            "prediction number, 4~98",
+        ));
+    }
+    if prediction_number < 4 {
+        return Err(StdError::generic_err(
+            "prediction number, 4~98",
+        ));
+    }
+
+
+    //4. dposit
+    let amount_raw = bet_amount.u128();
+    let mut state: State = config_read(&deps.storage).load()?;
+    let deposit = can_deposit(&env, &state, amount_raw)?;
+    state.pot_pool += deposit;
+    config(&mut deps.storage).update(|mut state| {
+            state.pot_pool += deposit;
+            Ok(state)
+    })?;
+
+
+    //5.game state setting
+    let mut room_store = PrefixedStorage::new(ROOM_KEY, &mut deps.storage);
+    let raw_address = deps.api.canonical_address(&env.message.sender)?;
+    let rand_entropy: Vec<u8> = Vec::new();
+
+
+    //6. rand setting
+    rand_entropy.extend(phrase.as_bytes());
+    rand_entropy.extend(raw_address.as_slice().to_vec());
+    rand_entropy.extend(env.block.chain_id.as_bytes().to_vec());
+    rand_entropy.extend(&env.block.height.to_be_bytes());
+    rand_entropy.extend(&env.block.time.to_be_bytes());
+    rand_entropy = Sha256::digest(&rand_entropy).as_slice().to_vec();
+    rand_entropy.extend_from_slice(&env.block.time.to_be_bytes());
+
+
+    //7. lucky_number apply
+    let mut state = config(&mut deps.storage).load()?;
+    let mut rng: Prng = Prng::new(&state.seed, &rand_entropy);
+    let Lucky_Number = rng.select_one_of(100);
+
+
+    //8. prediction_num/lucky_num is position check
+    // 0: over , 1: under
+    // 0: win , 1: lose
+    let winner = 1;
+    match position {
+        0 => {
+            if Lucky_Number > prediction_number{
+                winner = 0;
+            }else{
+                winner = 1;
+            };
+        },
         1 => {
-            state.winner1 =  (&unwrapped).clone();
-        },
-        2 => {
-            state.winner2 =  (&unwrapped).clone();
-        },
-        3 => {
-            state.winner3 =  (&unwrapped).clone();
-        },
-        _ => {
-            return Err(throw_gen_err(format!("bad winner selection")));
+            if Lucky_Number < prediction_number{
+                winner = 0;
+            }else{
+                winner = 1;
+            }
         }
     }
+    //9. room state save
+    let raw_room = to_vec(&room {
+        start_time: env.block.time,
+        entropy: Vec::default(),
+        Prediction_number: prediction_number,
+        Lucky_Number: Lucky_Number,
+        position: position,
+        results: winner,
+        bet_amount: bet_amount,
+    })?;
 
-    config(&mut deps.storage).save(&state)?;
+    room_store.set(raw_address.as_slice(), &raw_room); 
 
-    let winner_readable = deps.api.human_address(&unwrapped)?;
+    //10. Distribution of rewards by win
+        //11-1. Compensation ratio by number
+        //11-2. Commission
+        //11-3. rewards fund
 
-    Ok(HandleResponse {
-        messages: vec![],
-        log: vec![log("winner", format!("{}", winner_readable))],
-        data: None,
-    })
+    Ok(HandleResponse::default())
 }
-
-pub fn query<S: Storage, A: Api, Q: Querier>(
-    deps: &Extern<S, A, Q>,
-    msg: QueryMsg,
-) -> StdResult<Binary> {
-    match msg {
-        QueryMsg::GetCount {} => to_binary(&query_count(deps)?),
-    }
-}
-
-fn query_count<S: Storage, A: Api, Q: Querier>(deps: &Extern<S, A, Q>) -> StdResult<CountResponse> {
-    let state = config_read(&deps.storage).load()?;
-    Ok(CountResponse { count: state.count })
-}
-
 
 
 
