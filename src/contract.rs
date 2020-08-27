@@ -2,7 +2,7 @@ use cosmwasm_std::{
     log, to_binary, Api, Binary, Env, Extern, HandleResponse, InitResponse, Querier, StdError,
     StdResult, Storage, Uint128, to_vec, Coin, CosmosMsg, ReadonlyStorage, from_slice, HumanAddr, BankMsg,
 };
-use crate::msg::{RoomStateResponse, StateResponse, HandleMsg, InitMsg, QueryMsg};
+use crate::msg::{RoomStateResponse, StateResponse, HandleMsg, InitMsg, QueryMsg,PotResponse,RoomlnResponse};
 use crate::state::{State, Room, ROOM_KEY, config_read, CONFIG_KEY, KEY_CONSTANTS};
 use crate::rand::Prng;
 use cosmwasm_storage::{PrefixedStorage, ReadonlyPrefixedStorage};
@@ -21,7 +21,7 @@ pub fn init<S: Storage, A: Api, Q: Querier>(
         seed: msg.seed.as_bytes().to_vec(),
         min_credit: msg.min_credit,
         max_credit: msg.max_credit,
-        house_fee: 1,
+        house_fee: msg.house_fee,
     })?;
     config_store.set(KEY_CONSTANTS, &state);
     Ok(InitResponse::default())
@@ -462,38 +462,41 @@ pub fn try_ruler<S: Storage, A: Api, Q: Querier>(
 }
 fn read_state<S: Storage, A: Api, Q: Querier>(
     deps: &Extern<S, A, Q>
-) -> StdResult<StateResponse> {
+) -> StdResult<PotResponse> {
     let state = config_read(&deps.storage).load()?;
-    let owner = deps.api.human_address(&state.contract_owner)?;
+    //let owner = deps.api.human_address(&state.contract_owner)?;
     let pot = state.pot_pool.u128();
-    let fee_pool = state.fee_pool.u128();
-    let min_credit = state.min_credit.u128();
-    let max_credit = state.max_credit.u128();
-    Ok(StateResponse{
-        contract_owner: owner,
-        pot_pool: pot,
-        fee_pool: fee_pool,
-        min_credit:min_credit,
-        max_credit: max_credit,
-        house_fee: state.house_fee,
-    })
+    //let fee_pool = state.fee_pool.u128();
+    //let min_credit = state.min_credit.u128();
+    //let max_credit = state.max_credit.u128();
+    //Ok(StateResponse{
+    //    contract_owner: owner,
+    //    pot_pool: pot,
+    //    fee_pool: fee_pool,
+    //    min_credit:min_credit,
+    //    max_credit: max_credit,
+    //    house_fee: state.house_fee,
+    //})
+    Ok(PotResponse{pot_pool : pot})
 }
 fn read_root_state<S: Storage, A: Api>(
     address: HumanAddr,
     store: &S,
     api: &A,
-) -> StdResult<RoomStateResponse> {
+) -> StdResult<RoomlnResponse> {
     let owner_address = api.canonical_address(&address)?;
     let room_store = ReadonlyPrefixedStorage::new(ROOM_KEY, store);
     let room_state = room_store.get(owner_address.as_slice()).unwrap();
     let room : Room = from_slice(&room_state).unwrap();
-    Ok(RoomStateResponse{
-        start_time: room.start_time,
-        entropy: room.entropy,
-        prediction_number: room.prediction_number,
-        lucky_number: room.lucky_number,
-        position: room.position,
-        results: room.results,
-        bet_amount: room.bet_amount.u128(),
-    })
+    //Ok(RoomStateResponse{
+    //    start_time: room.start_time,
+    //    entropy: room.entropy,
+    //    prediction_number: room.prediction_number,
+    //    lucky_number: room.lucky_number,
+    //    position: room.position,
+    //    results: room.results,
+    //    bet_amount: room.bet_amount.u128(),
+    //})
+    Ok(RoomlnResponse{lucky_number: room.lucky_number})
+
 }
