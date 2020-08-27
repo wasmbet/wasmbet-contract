@@ -7,7 +7,7 @@ pub struct InitMsg {
     pub seed : String,
     pub min_credit: Uint128,
     pub max_credit: Uint128,
-    pub house_fee: f64,
+    pub house_fee: u64,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -22,7 +22,7 @@ pub enum HandleMsg {
         min_credit: Uint128,
     },
     TryChaingeFee{
-        fee: f64,
+        fee: u64,
     },
     TryFeePoolWithdraw{
         amount: Uint128
@@ -33,7 +33,7 @@ pub enum HandleMsg {
 
     Ruler {
         phrase: String,
-        prediction_number: u32,
+        prediction_number: u64,
         position: String,
         bet_amount: Uint128,
     },
@@ -55,16 +55,16 @@ pub struct StateResponse {
     pub fee_pool: u128,
     pub min_credit: u128,
     pub max_credit: u128,
-    pub house_fee: f64,
+    pub house_fee: u64,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct RoomStateResponse {
     pub start_time: u64,
     pub entropy: Vec<u8>,
-    pub prediction_number: u32,
-    pub lucky_number: u32,
+    pub prediction_number: u64,
+    pub lucky_number: u64,
     pub position: String,
-    pub results: u8,
+    pub results: u64,
     pub bet_amount: u128,
 }

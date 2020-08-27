@@ -4,17 +4,18 @@ use serde::{Deserialize, Serialize};
 use cosmwasm_std::{CanonicalAddr, Storage, Uint128};
 use cosmwasm_storage::{singleton, singleton_read, ReadonlySingleton, Singleton};
 
-pub static CONFIG_KEY: &[u8] = b"config";
-pub static ROOM_KEY: &[u8] = b"room";
+pub const CONFIG_KEY: &[u8] = b"config";
+pub const ROOM_KEY: &[u8] = b"room";
+pub const KEY_CONSTANTS: &[u8] = b"constants";
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Room {
     pub start_time: u64,
     pub entropy: Vec<u8>,
-    pub prediction_number: u32,
-    pub lucky_number: u32,
+    pub prediction_number: u64,
+    pub lucky_number: u64,
     pub position: String,
-    pub results: u8,
+    pub results: u64,
     pub bet_amount: Uint128,
 }
 
@@ -26,7 +27,7 @@ pub struct State {
     pub seed : Vec<u8>,
     pub min_credit: Uint128,
     pub max_credit: Uint128,
-    pub house_fee: f64,
+    pub house_fee: u64,
 }
 
 pub fn config<S: Storage>(storage: &mut S) -> Singleton<S, State> {
