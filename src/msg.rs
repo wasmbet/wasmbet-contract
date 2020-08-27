@@ -4,10 +4,10 @@ use serde::{Deserialize, Serialize};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InitMsg {
-    pub betting_pool: HumanAddr,
     pub seed : String,
-    pub min_credit: u128,
-    pub max_credit: u128,
+    pub min_credit: Uint128,
+    pub max_credit: Uint128,
+    pub house_fee: f64,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

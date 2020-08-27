@@ -24,8 +24,9 @@ pub struct State {
     pub pot_pool: Uint128,
     pub fee_pool: Uint128,
     pub seed : Vec<u8>,
-    pub min_credit: u128,
-    pub max_credit: u128,
+    pub min_credit: Uint128,
+    pub max_credit: Uint128,
+    pub house_fee: f64,
 }
 
 pub fn config<S: Storage>(storage: &mut S) -> Singleton<S, State> {
