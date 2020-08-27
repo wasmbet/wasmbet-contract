@@ -1,6 +1,6 @@
 use cosmwasm_std::{
     log, to_binary, Api, Binary, Env, Extern, HandleResponse, InitResponse, Querier, StdError,
-    StdResult, Storage, Uint128, to_vec, Coin, BankMsg, ReadonlyStorage, from_slice, HumanAddr
+    StdResult, Storage, Uint128, to_vec, Coin, CosmosMsg, ReadonlyStorage, from_slice, HumanAddr, BankMsg,
 };
 use crate::msg::{RoomStateResponse, StateResponse, HandleMsg, InitMsg, QueryMsg};
 use crate::state::{State, Room, ROOM_KEY, config, config_read};
@@ -184,13 +184,20 @@ fn try_fee_pool_withdraw<S: Storage, A: Api, Q: Querier>(
         if state.fee_pool < *amount{
             return Err(StdError::generic_err(format!("insufficient fee pool")));
         } else if state.fee_pool > *amount{
-            can_winer_payout(&env, *amount);
             let payaout = state.fee_pool - *amount;
             state.fee_pool = payaout.unwrap();
         }
         Ok(state)
     })?;
-    Ok(HandleResponse::default())
+    let transfer = can_winer_payout(&env, *amount).unwrap();
+    let res = HandleResponse {
+        messages: vec![transfer],
+        log: vec![
+            log("action", "pot_pool_withdraw"),
+        ],
+        data: None,
+    };
+    Ok(res)
 }
 
 fn try_pot_pool_withdraw<S: Storage, A: Api, Q: Querier>(
@@ -199,7 +206,6 @@ fn try_pot_pool_withdraw<S: Storage, A: Api, Q: Querier>(
     amount: &Uint128,
 ) -> StdResult<HandleResponse> {
     let api = &deps.api;
-
     config(&mut deps.storage).update(|mut state| {
         if api.canonical_address(&env.message.sender)? != state.contract_owner {
             return Err(StdError::generic_err(format!("not owner address")));
@@ -207,38 +213,43 @@ fn try_pot_pool_withdraw<S: Storage, A: Api, Q: Querier>(
         if state.pot_pool < *amount{
             return Err(StdError::generic_err(format!("insufficient fee pool")));
         } else if state.pot_pool > *amount{
-            can_winer_payout(&env, *amount);
             let payaout = state.pot_pool - *amount;
             state.pot_pool = payaout.unwrap();
         }
         Ok(state)
     })?;
-    Ok(HandleResponse::default())
+    let transfer = can_winer_payout(&env, *amount).unwrap();
+    let res = HandleResponse {
+        messages: vec![transfer],
+        log: vec![
+            log("action", "pot_pool_withdraw"),
+        ],
+        data: None,
+    };
+    Ok(res)
 }
+
 
 pub fn can_winer_payout(
     env: &Env,
     payout_amount: Uint128,
-)-> StdResult<HandleResponse> {
+)-> StdResult<CosmosMsg> {
     let token_transfer = BankMsg::Send {
         from_address: env.contract.address.clone(),
-        to_address: env.message.sender.clone().clone(),
+        to_address: env.message.sender.clone(),
         amount: vec![Coin {
             denom: "ukrw".to_string(),
             amount: payout_amount,
         }],
     }
     .into();
+    Ok(token_transfer)
+}
 
-    let res = HandleResponse {
-        messages: vec![token_transfer],
-        log: vec![
-            log("action", "winner payout"),
-        ],
-        data: None,
-    };
-
-    Ok(res)
+#[derive(Clone, Debug, PartialEq)]
+pub struct PayResponse{
+    pub payout : f64,
+    pub payout_fee: f64
 }
 
 pub fn payout_amount(
@@ -246,7 +257,7 @@ pub fn payout_amount(
     position: String,
     bet_amount: &Uint128,
     fee: f64
-) -> (f64,f64){
+) -> StdResult<PayResponse>{
     let multiplier;
     let payout;
     let payout_fee;
@@ -272,7 +283,7 @@ pub fn payout_amount(
             payout = pay -payout_fee;
         },
     }
-    return (payout ,payout_fee)
+    Ok(PayResponse{payout: payout, payout_fee: payout_fee})
 }
 
 pub fn try_ruler<S: Storage, A: Api, Q: Querier>(
@@ -314,13 +325,16 @@ pub fn try_ruler<S: Storage, A: Api, Q: Querier>(
 
     let state_pool = config_read(&deps.storage).load()?;
     //3.prediction check is pool amount check
-    let (payout, payout_fee) = payout_amount(
+    let payout_struct = payout_amount(
         prediction_number,
         position.clone(), 
         bet_amount,
         state_pool.house_fee
     );
-
+    let payout_unwrap = payout_struct.unwrap();
+    let payout = payout_unwrap.payout;
+    let payout_fee = payout_unwrap.payout_fee;
+   
     if &position[..] == "over"{
         if state_pool.pot_pool < Uint128::from(payout as u128){
             return Err(StdError::generic_err("Lack of reserves",));
@@ -425,7 +439,6 @@ pub fn try_ruler<S: Storage, A: Api, Q: Querier>(
     let float_bet_amount = convert_bet_amount.u128() as f64;
     let fee = float_bet_amount-float_bet_amount * state_pool.house_fee;  
     let convert_fee= Uint128::from(fee as u128);
-
     config(&mut deps.storage).update(|mut state| {
         state.fee_pool += convert_fee;
         Ok(state)
@@ -443,20 +456,20 @@ pub fn try_ruler<S: Storage, A: Api, Q: Querier>(
         })?;
 
         if state_pool.pot_pool < Uint128::from(payout as u128){
-            can_winer_payout(&env, *bet_amount);
+            let _ = can_winer_payout(&env, *bet_amount);
             return Err(StdError::generic_err(
                 "Lack of reserves, bet_amount refund",
             ));
+
         } else if state_pool.pot_pool > Uint128::from(payout as u128){
             let potout = state_pool.pot_pool.u128()- payout as u128;
-            can_winer_payout(&env, Uint128::from(payout as u128));
+            let _ = can_winer_payout(&env, Uint128::from(payout as u128));
             config(&mut deps.storage).update(|mut state| {
                 state.pot_pool =Uint128::from(potout);
                 Ok(state)
             })?;
         }
     }
-
     Ok(HandleResponse::default())
 }
 
