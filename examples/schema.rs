@@ -3,8 +3,8 @@ use std::fs::create_dir_all;
 
 use cosmwasm_schema::{export_schema, remove_schemas, schema_for};
 
-use wasmbet_contract::msg::{CountResponse, HandleMsg, InitMsg, QueryMsg};
-use wasmbet_contract::state::State;
+use wasmbet_contract_dice::msg::{StateResponse,RoomStateResponse, HandleMsg, InitMsg, QueryMsg};
+use wasmbet_contract_dice::state::State;
 
 fn main() {
     let mut out_dir = current_dir().unwrap();
@@ -16,5 +16,6 @@ fn main() {
     export_schema(&schema_for!(HandleMsg), &out_dir);
     export_schema(&schema_for!(QueryMsg), &out_dir);
     export_schema(&schema_for!(State), &out_dir);
-    export_schema(&schema_for!(CountResponse), &out_dir);
+    export_schema(&schema_for!(StateResponse), &out_dir);
+    export_schema(&schema_for!(RoomStateResponse), &out_dir);
 }

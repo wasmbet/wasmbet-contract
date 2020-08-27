@@ -1,10 +1,9 @@
 use cosmwasm_std::{
     log, to_binary, Api, Binary, Env, Extern, HandleResponse, InitResponse, Querier, StdError,
-    StdResult, Storage,CanonicalAddr,Uint128,to_vec,HumanAddr,Coin , ReadonlyStorage ,BankMsg
+    StdResult, Storage, Uint128, to_vec, Coin, BankMsg, ReadonlyStorage, from_slice, HumanAddr
 };
-use serde_json_wasm as serde_json;
-use crate::msg::{CountResponse, HandleMsg, InitMsg, QueryMsg};
-use crate::state::{State, Room,ROOM_KEY,CONFIG_KEY,config, config_read};
+use crate::msg::{RoomStateResponse, StateResponse, HandleMsg, InitMsg, QueryMsg};
+use crate::state::{State, Room, ROOM_KEY, config, config_read};
 use crate::rand::Prng;
 
 use cosmwasm_storage::{PrefixedStorage, ReadonlyPrefixedStorage};
@@ -44,17 +43,178 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
             position,
             &bet_amount,
         ),
+        HandleMsg::TryPotPoolDeposit{} => try_pot_pool_deposit(
+            deps, 
+            env,
+        ),
+        HandleMsg::TryChangeMaxcredit{max_credit} => try_change_maxcredit(
+            deps, 
+            env, 
+            &max_credit,
+        ),
+        HandleMsg::TryChangeMincredit{min_credit} => try_change_mincredit(
+            deps, 
+            env, 
+            &min_credit,
+        ),
+        HandleMsg::TryChaingeFee{fee} => try_change_fee(
+            deps,
+            env,
+            fee,
+        ),
+        HandleMsg::TryFeePoolWithdraw{amount} => try_fee_pool_withdraw(
+            deps,
+            env,
+            &amount,
+        ),
+        HandleMsg::TryPotPoolWithdraw{amount} => try_pot_pool_withdraw(
+            deps,
+            env,
+            &amount,
+        ),
     }
 }
-//State Future features: change support
-//fn change_min_credit
-//fn change_max_credit
-//fn owner_pot_deposit
-//fn owner_pot_refund
-//fn owner_fee_refund
-//query pool blance
-//query my_win_query
+pub fn query<S: Storage, A: Api, Q: Querier>(
+    deps: &Extern<S, A, Q>,
+    msg: QueryMsg,
+) -> StdResult<Binary> {
+    match msg {
+        QueryMsg::Getstate {} => to_binary(
+            &read_state(
+                deps
+            )?
+        ),
+        QueryMsg::GetMyRoomState{address}=> to_binary(
+            &read_root_state(
+                address,
+                &deps.storage,
+                &deps.api
+            )?
+        )
+    }
+}
 
+fn try_pot_pool_deposit<S: Storage, A: Api, Q: Querier>(
+    deps: &mut Extern<S, A, Q>,
+    env: Env,
+) -> StdResult<HandleResponse> {
+    let mut amount_raw: Uint128 = Uint128::default();
+
+    for coin in &env.message.sent_funds {
+        if coin.denom == "ukrw" {
+            amount_raw = coin.amount
+        }
+    }
+
+    if amount_raw == Uint128::default() {
+        return Err(StdError::generic_err(format!("Lol send some funds dude")));
+    }
+
+    let api = &deps.api;
+    config(&mut deps.storage).update(|mut state| {
+        if api.canonical_address(&env.message.sender)? != state.contract_owner {
+            return Err(StdError::generic_err(format!("not owner address")));
+        }
+        state.pot_pool += amount_raw;
+        Ok(state)
+    })?;
+    Ok(HandleResponse::default())
+}
+fn try_change_maxcredit<S: Storage, A: Api, Q: Querier>(
+    deps: &mut Extern<S, A, Q>,
+    env: Env,
+    max_credit: &Uint128,
+) -> StdResult<HandleResponse> {
+    let api = &deps.api;
+
+    config(&mut deps.storage).update(|mut state| {
+        if api.canonical_address(&env.message.sender)? != state.contract_owner {
+            return Err(StdError::generic_err(format!("not owner address")));
+        }
+        state.min_credit = *max_credit;
+        Ok(state)
+    })?;
+    Ok(HandleResponse::default())
+}
+
+fn try_change_mincredit<S: Storage, A: Api, Q: Querier>(
+    deps: &mut Extern<S, A, Q>,
+    env: Env,
+    min_credit: &Uint128,
+) -> StdResult<HandleResponse> {
+    let api = &deps.api;
+
+    config(&mut deps.storage).update(|mut state| {
+        if api.canonical_address(&env.message.sender)? != state.contract_owner {
+            return Err(StdError::generic_err(format!("not owner address")));
+        }
+        state.min_credit = *min_credit;
+        Ok(state)
+    })?;
+    Ok(HandleResponse::default())
+}
+fn try_change_fee<S: Storage, A: Api, Q: Querier>(
+    deps: &mut Extern<S, A, Q>,
+    env: Env,
+    fee: f64,
+) -> StdResult<HandleResponse> {
+    let api = &deps.api;
+
+    config(&mut deps.storage).update(|mut state| {
+        if api.canonical_address(&env.message.sender)? != state.contract_owner {
+            return Err(StdError::generic_err(format!("not owner address")));
+        }
+        state.house_fee = fee;
+        Ok(state)
+    })?;
+    Ok(HandleResponse::default())
+}
+
+fn try_fee_pool_withdraw<S: Storage, A: Api, Q: Querier>(
+    deps: &mut Extern<S, A, Q>,
+    env: Env,
+    amount: &Uint128,
+) -> StdResult<HandleResponse> {
+    let api = &deps.api;
+
+    config(&mut deps.storage).update(|mut state| {
+        if api.canonical_address(&env.message.sender)? != state.contract_owner {
+            return Err(StdError::generic_err(format!("not owner address")));
+        }
+        if state.fee_pool < *amount{
+            return Err(StdError::generic_err(format!("insufficient fee pool")));
+        } else if state.fee_pool > *amount{
+            can_winer_payout(&env, *amount);
+            let payaout = state.fee_pool - *amount;
+            state.fee_pool = payaout.unwrap();
+        }
+        Ok(state)
+    })?;
+    Ok(HandleResponse::default())
+}
+
+fn try_pot_pool_withdraw<S: Storage, A: Api, Q: Querier>(
+    deps: &mut Extern<S, A, Q>,
+    env: Env,
+    amount: &Uint128,
+) -> StdResult<HandleResponse> {
+    let api = &deps.api;
+
+    config(&mut deps.storage).update(|mut state| {
+        if api.canonical_address(&env.message.sender)? != state.contract_owner {
+            return Err(StdError::generic_err(format!("not owner address")));
+        }
+        if state.pot_pool < *amount{
+            return Err(StdError::generic_err(format!("insufficient fee pool")));
+        } else if state.pot_pool > *amount{
+            can_winer_payout(&env, *amount);
+            let payaout = state.pot_pool - *amount;
+            state.pot_pool = payaout.unwrap();
+        }
+        Ok(state)
+    })?;
+    Ok(HandleResponse::default())
+}
 
 pub fn can_winer_payout(
     env: &Env,
@@ -255,9 +415,8 @@ pub fn try_ruler<S: Storage, A: Api, Q: Querier>(
         results: win_results,
         bet_amount: *bet_amount,
     })?;
-
+    
     room_store.set(raw_address.as_slice(), &raw_room); 
-
     //10. Distribution of rewards by win and lose
         //11-1. Compensation ratio by number
         //11-2. fee
@@ -301,75 +460,41 @@ pub fn try_ruler<S: Storage, A: Api, Q: Querier>(
     Ok(HandleResponse::default())
 }
 
+fn read_state<S: Storage, A: Api, Q: Querier>(
+    deps: &Extern<S, A, Q>
+) -> StdResult<StateResponse> {
+    let state = config_read(&deps.storage).load()?;
+    let owner = deps.api.human_address(&state.contract_owner)?;
+    let pot = state.pot_pool.u128();
+    let fee_pool = state.fee_pool.u128();
+    let min_credit = state.min_credit.u128();
+    let max_credit = state.max_credit.u128();
+    Ok(StateResponse{
+        contract_owner: owner,
+        pot_pool: pot,
+        fee_pool: fee_pool,
+        min_credit:min_credit,
+        max_credit: max_credit,
+        house_fee: state.house_fee,
+    })
+}
 
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-    use cosmwasm_std::testing::{mock_dependencies, mock_env};
-    use cosmwasm_std::{coins, from_binary, StdError};
-
-    #[test]
-    fn proper_initialization() {
-        let mut deps = mock_dependencies(20, &[]);
-
-        let msg = InitMsg { count: 17 };
-        let env = mock_env("creator", &coins(1000, "earth"));
-
-        // we can just call .unwrap() to assert this was a success
-        let res = init(&mut deps, env, msg).unwrap();
-        assert_eq!(0, res.messages.len());
-
-        // it worked, let's query the state
-        let res = query(&deps, QueryMsg::GetCount {}).unwrap();
-        let value: CountResponse = from_binary(&res).unwrap();
-        assert_eq!(17, value.count);
-    }
-
-    #[test]
-    fn increment() {
-        let mut deps = mock_dependencies(20, &coins(2, "token"));
-
-        let msg = InitMsg { count: 17 };
-        let env = mock_env("creator", &coins(2, "token"));
-        let _res = init(&mut deps, env, msg).unwrap();
-
-        // beneficiary can release it
-        let env = mock_env("anyone", &coins(2, "token"));
-        let msg = HandleMsg::Increment {};
-        let _res = handle(&mut deps, env, msg).unwrap();
-
-        // should increase counter by 1
-        let res = query(&deps, QueryMsg::GetCount {}).unwrap();
-        let value: CountResponse = from_binary(&res).unwrap();
-        assert_eq!(18, value.count);
-    }
-
-    #[test]
-    fn reset() {
-        let mut deps = mock_dependencies(20, &coins(2, "token"));
-
-        let msg = InitMsg { count: 17 };
-        let env = mock_env("creator", &coins(2, "token"));
-        let _res = init(&mut deps, env, msg).unwrap();
-
-        // beneficiary can release it
-        let unauth_env = mock_env("anyone", &coins(2, "token"));
-        let msg = HandleMsg::Reset { count: 5 };
-        let res = handle(&mut deps, unauth_env, msg);
-        match res {
-            Err(StdError::Unauthorized { .. }) => {}
-            _ => panic!("Must return unauthorized error"),
-        }
-
-        // only the original creator can reset the counter
-        let auth_env = mock_env("creator", &coins(2, "token"));
-        let msg = HandleMsg::Reset { count: 5 };
-        let _res = handle(&mut deps, auth_env, msg).unwrap();
-
-        // should now be 5
-        let res = query(&deps, QueryMsg::GetCount {}).unwrap();
-        let value: CountResponse = from_binary(&res).unwrap();
-        assert_eq!(5, value.count);
-    }
+fn read_root_state<S: Storage, A: Api>(
+    address: HumanAddr,
+    store: &S,
+    api: &A,
+) -> StdResult<RoomStateResponse> {
+    let owner_address = api.canonical_address(&address)?;
+    let room_store = ReadonlyPrefixedStorage::new(ROOM_KEY, store);
+    let room_state = room_store.get(owner_address.as_slice()).unwrap();
+    let room : Room = from_slice(&room_state).unwrap();
+    Ok(RoomStateResponse{
+        start_time: room.start_time,
+        entropy: room.entropy,
+        prediction_number: room.prediction_number,
+        lucky_number: room.lucky_number,
+        position: room.position,
+        results: room.results,
+        bet_amount: room.bet_amount.u128(),
+    })
 }

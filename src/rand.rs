@@ -1,4 +1,3 @@
-use core::iter::Iterator;
 use rand_chacha::ChaChaRng;
 use rand_core::{RngCore, SeedableRng};
 

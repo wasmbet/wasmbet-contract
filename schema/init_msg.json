@@ -3,12 +3,29 @@
   "title": "InitMsg",
   "type": "object",
   "required": [
-    "count"
+    "house_fee",
+    "max_credit",
+    "min_credit",
+    "seed"
   ],
   "properties": {
-    "count": {
-      "type": "integer",
-      "format": "int32"
+    "house_fee": {
+      "type": "number",
+      "format": "double"
+    },
+    "max_credit": {
+      "$ref": "#/definitions/Uint128"
+    },
+    "min_credit": {
+      "$ref": "#/definitions/Uint128"
+    },
+    "seed": {
+      "type": "string"
+    }
+  },
+  "definitions": {
+    "Uint128": {
+      "type": "string"
     }
   }
 }

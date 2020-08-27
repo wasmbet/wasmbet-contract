@@ -5,13 +5,37 @@
     {
       "type": "object",
       "required": [
-        "get_count"
+        "getstate"
       ],
       "properties": {
-        "get_count": {
+        "getstate": {
           "type": "object"
         }
       }
+    },
+    {
+      "type": "object",
+      "required": [
+        "get_my_room_state"
+      ],
+      "properties": {
+        "get_my_room_state": {
+          "type": "object",
+          "required": [
+            "address"
+          ],
+          "properties": {
+            "address": {
+              "$ref": "#/definitions/HumanAddr"
+            }
+          }
+        }
+      }
     }
-  ]
+  ],
+  "definitions": {
+    "HumanAddr": {
+      "type": "string"
+    }
+  }
 }
