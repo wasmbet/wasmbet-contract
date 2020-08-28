@@ -37,7 +37,7 @@ fn proper_initialization() {
          max_credit: Uint128::from(10000000u128), 
          house_fee: 1,
         };
-    let env = mock_env("creator", &coins(1000, "earth"));
+    let env = mock_env("creator", &coins(10000000000000000, "ukrw"));
 
     // we can just call .unwrap() to assert this was a success
     let res: InitResponse = init(&mut deps, env, msg).unwrap();
@@ -47,4 +47,25 @@ fn proper_initialization() {
     let res = query(&mut deps, QueryMsg::Getstate{}).unwrap();
     let value: StateResponse = from_binary(&res).unwrap();
     assert_eq!(value.min_credit, 1000000 );
+
+
+    let env = mock_env("creator", &coins(2000000, "ukrw"));
+    let seed = String::from("Hello, world!");
+    let under = String::from("under");
+    let Ruler = HandleMsg::Ruler {
+            phrase: seed,
+            prediction_number:50,
+            position: under,
+            bet_amount: Uint128::from(2000000u128),
+    };
+    let try_ruler_response: HandleResponse = handle(&mut deps, env, Ruler).unwrap();
+    assert_eq!(try_ruler_response.messages.len(), 0);
+
+    // it worked, let's query the state
+    //let addres = deps.api.human_address(&env.message.sender);
+    //let res = query(&mut deps, QueryMsg::GetMyRoomState{address:addres}).unwrap();
+    //let value: RoomStateResponse = from_binary(&res).unwrap();
+    //assert_eq!(value.min_credit, 1000000 );
+
+
 }

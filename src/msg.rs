@@ -51,10 +51,10 @@ pub enum QueryMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct StateResponse {
     pub contract_owner: HumanAddr,
-    pub pot_pool: u128,
-    pub fee_pool: u128,
-    pub min_credit: u128,
-    pub max_credit: u128,
+    pub pot_pool: u64,
+    pub fee_pool: u64,
+    pub min_credit: u64,
+    pub max_credit: u64,
     pub house_fee: u64,
 }
 
@@ -66,5 +66,5 @@ pub struct RoomStateResponse {
     pub lucky_number: u64,
     pub position: String,
     pub results: u64,
-    pub bet_amount: u128,
+    pub bet_amount: u64,
 }

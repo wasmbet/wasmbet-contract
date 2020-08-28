@@ -7,6 +7,7 @@ use cosmwasm_storage::{singleton, singleton_read, ReadonlySingleton, Singleton};
 pub const CONFIG_KEY: &[u8] = b"config";
 pub const ROOM_KEY: &[u8] = b"room";
 pub const KEY_CONSTANTS: &[u8] = b"constants";
+pub const PARAMATER_KEY: &[u8] = b"parmater";
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Room {

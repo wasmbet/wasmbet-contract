@@ -2,8 +2,8 @@ use cosmwasm_std::{
     log, to_binary, Api, Binary, Env, Extern, HandleResponse, InitResponse, Querier, StdError,
     StdResult, Storage, Uint128, to_vec, Coin, CosmosMsg, ReadonlyStorage, from_slice, HumanAddr, BankMsg,
 };
-use crate::msg::{RoomStateResponse, StateResponse, HandleMsg, InitMsg, QueryMsg,PotResponse,RoomlnResponse};
-use crate::state::{State, Room, ROOM_KEY, config_read, CONFIG_KEY, KEY_CONSTANTS};
+use crate::msg::{RoomStateResponse, StateResponse, HandleMsg, InitMsg, QueryMsg};
+use crate::state::{State, Room, ROOM_KEY, KEY_CONSTANTS, PARAMATER_KEY};
 use crate::rand::Prng;
 use cosmwasm_storage::{PrefixedStorage, ReadonlyPrefixedStorage};
 use sha2::{Digest, Sha256};
@@ -13,7 +13,7 @@ pub fn init<S: Storage, A: Api, Q: Querier>(
     env: Env,
     msg: InitMsg,
 ) -> StdResult<InitResponse> {
-    let mut config_store = PrefixedStorage::new(CONFIG_KEY, &mut deps.storage);
+    let mut config_store = PrefixedStorage::new(PARAMATER_KEY, &mut deps.storage);
     let state = to_vec(&State {
         contract_owner: deps.api.canonical_address(&env.message.sender)?,
         pot_pool: Uint128::from(0u128),
@@ -112,7 +112,7 @@ fn try_pot_pool_deposit<S: Storage, A: Api, Q: Querier>(
     }
 
     let api = &deps.api;
-    let mut config_store = PrefixedStorage::new(CONFIG_KEY, &mut deps.storage);
+    let mut config_store = PrefixedStorage::new(PARAMATER_KEY, &mut deps.storage);
     let data = config_store.get(KEY_CONSTANTS).expect("no pot_pool_deposit");
     let mut state : State = from_slice(&data).unwrap();
     if api.canonical_address(&env.message.sender)? != state.contract_owner {
@@ -129,7 +129,7 @@ fn try_change_maxcredit<S: Storage, A: Api, Q: Querier>(
     max_credit: &Uint128,
 ) -> StdResult<HandleResponse> {
     let api = &deps.api;
-    let mut config_store = PrefixedStorage::new(CONFIG_KEY, &mut deps.storage);
+    let mut config_store = PrefixedStorage::new(PARAMATER_KEY, &mut deps.storage);
     let data = config_store.get(KEY_CONSTANTS).expect("no change_maxcredit");
     let mut state : State = from_slice(&data).unwrap();
     if api.canonical_address(&env.message.sender)? != state.contract_owner {
@@ -145,7 +145,7 @@ fn try_change_mincredit<S: Storage, A: Api, Q: Querier>(
     min_credit: &Uint128,
 ) -> StdResult<HandleResponse> {
     let api = &deps.api;
-    let mut config_store = PrefixedStorage::new(CONFIG_KEY, &mut deps.storage);
+    let mut config_store = PrefixedStorage::new(PARAMATER_KEY, &mut deps.storage);
     let data = config_store.get(KEY_CONSTANTS).expect("no change_mincredit");
     let mut state : State = from_slice(&data).unwrap();
     if api.canonical_address(&env.message.sender)? != state.contract_owner {
@@ -161,7 +161,7 @@ fn try_change_fee<S: Storage, A: Api, Q: Querier>(
     fee: u64,
 ) -> StdResult<HandleResponse> {
     let api = &deps.api;
-    let mut config_store = PrefixedStorage::new(CONFIG_KEY, &mut deps.storage);
+    let mut config_store = PrefixedStorage::new(PARAMATER_KEY, &mut deps.storage);
     let data = config_store.get(KEY_CONSTANTS).expect("no pot_pool_deposit");
     let mut state : State = from_slice(&data).unwrap();
     if api.canonical_address(&env.message.sender)? != state.contract_owner {
@@ -177,7 +177,7 @@ fn try_fee_pool_withdraw<S: Storage, A: Api, Q: Querier>(
     amount: &Uint128,
 ) -> StdResult<HandleResponse> {
     let api = &deps.api;
-    let mut config_store = PrefixedStorage::new(CONFIG_KEY, &mut deps.storage);
+    let mut config_store = PrefixedStorage::new(PARAMATER_KEY, &mut deps.storage);
     let data = config_store.get(KEY_CONSTANTS).expect("no pot_pool_deposit");
     let mut state : State = from_slice(&data).unwrap();
     if api.canonical_address(&env.message.sender)? != state.contract_owner {
@@ -206,7 +206,7 @@ fn try_pot_pool_withdraw<S: Storage, A: Api, Q: Querier>(
     amount: &Uint128,
 ) -> StdResult<HandleResponse> {
     let api = &deps.api;
-    let mut config_store = PrefixedStorage::new(CONFIG_KEY, &mut deps.storage);
+    let mut config_store = PrefixedStorage::new(PARAMATER_KEY, &mut deps.storage);
     let data = config_store.get(KEY_CONSTANTS).expect("no pot_pool_withdraw");
     let mut state : State = from_slice(&data).unwrap();
     if api.canonical_address(&env.message.sender)? != state.contract_owner {
@@ -317,7 +317,9 @@ pub fn try_ruler<S: Storage, A: Api, Q: Querier>(
         }
     }
 
-    let state_pool = config_read(&deps.storage).load()?;
+    let config_store = PrefixedStorage::new(PARAMATER_KEY, &mut deps.storage);
+    let data = config_store.get(KEY_CONSTANTS).expect("no pot_pool_withdraw");
+    let state_pool : State = from_slice(&data).unwrap();
     //3.prediction check is pool amount check
     let payout_struct = payout_amount(
         prediction_number,
@@ -387,7 +389,7 @@ pub fn try_ruler<S: Storage, A: Api, Q: Querier>(
     let mut rng: Prng = Prng::new(&state_pool.seed, &rand_entropy);
     let lucky_number_u32 = rng.select_one_of(99);
     let lucky_number = lucky_number_u32 as u64;
-
+    
 
     //8. prediction_num/lucky_num is position check
     // 0: win , 1: lose
@@ -434,7 +436,7 @@ pub fn try_ruler<S: Storage, A: Api, Q: Querier>(
     let convert_fee = state_pool.house_fee as f64 / 100.0;
     let fee = float_bet_amount-float_bet_amount * convert_fee;  
     let convert_fee= Uint128::from(fee as u128);
-    let mut config_store = PrefixedStorage::new(CONFIG_KEY, &mut deps.storage);
+    let mut config_store = PrefixedStorage::new(PARAMATER_KEY, &mut deps.storage);
     let data = config_store.get(KEY_CONSTANTS).expect("no pot_pool_deposit");
     let mut state : State = from_slice(&data).unwrap();
     state.fee_pool += convert_fee;
@@ -462,41 +464,43 @@ pub fn try_ruler<S: Storage, A: Api, Q: Querier>(
 }
 fn read_state<S: Storage, A: Api, Q: Querier>(
     deps: &Extern<S, A, Q>
-) -> StdResult<PotResponse> {
-    let state = config_read(&deps.storage).load()?;
-    //let owner = deps.api.human_address(&state.contract_owner)?;
+) -> StdResult<StateResponse> {
+    let config_store = ReadonlyPrefixedStorage::new(PARAMATER_KEY, &deps.storage);
+    let data = config_store.get(KEY_CONSTANTS).expect("no pot_pool_deposit");
+    let state : State = from_slice(&data).unwrap();
+    let owner = deps.api.human_address(&state.contract_owner)?;
     let pot = state.pot_pool.u128();
-    //let fee_pool = state.fee_pool.u128();
-    //let min_credit = state.min_credit.u128();
-    //let max_credit = state.max_credit.u128();
-    //Ok(StateResponse{
-    //    contract_owner: owner,
-    //    pot_pool: pot,
-    //    fee_pool: fee_pool,
-    //    min_credit:min_credit,
-    //    max_credit: max_credit,
-    //    house_fee: state.house_fee,
-    //})
-    Ok(PotResponse{pot_pool : pot})
+    let fee_pool = state.fee_pool.u128();
+    let min_credit = state.min_credit.u128();
+    let max_credit = state.max_credit.u128();
+    Ok(StateResponse{
+        contract_owner: owner,
+        pot_pool: pot as u64,
+        fee_pool: fee_pool as u64,
+        min_credit:min_credit as u64,
+        max_credit: max_credit as u64,
+        house_fee: state.house_fee,
+    })
 }
+
 fn read_root_state<S: Storage, A: Api>(
     address: HumanAddr,
     store: &S,
     api: &A,
-) -> StdResult<RoomlnResponse> {
+) -> StdResult<RoomStateResponse> {
     let owner_address = api.canonical_address(&address)?;
     let room_store = ReadonlyPrefixedStorage::new(ROOM_KEY, store);
     let room_state = room_store.get(owner_address.as_slice()).unwrap();
     let room : Room = from_slice(&room_state).unwrap();
-    //Ok(RoomStateResponse{
-    //    start_time: room.start_time,
-    //    entropy: room.entropy,
-    //    prediction_number: room.prediction_number,
-    //    lucky_number: room.lucky_number,
-    //    position: room.position,
-    //    results: room.results,
-    //    bet_amount: room.bet_amount.u128(),
-    //})
-    Ok(RoomlnResponse{lucky_number: room.lucky_number})
+    let amount = room.bet_amount.u128();
+    Ok(RoomStateResponse{
+        start_time: room.start_time,
+        entropy: room.entropy,
+        prediction_number: room.prediction_number,
+        lucky_number: room.lucky_number,
+        position: room.position,
+        results: room.results,
+        bet_amount: amount as u64,
+    })
 
 }
