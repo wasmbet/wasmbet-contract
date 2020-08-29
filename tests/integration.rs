@@ -48,7 +48,6 @@ fn proper_initialization() {
     let value: StateResponse = from_binary(&res).unwrap();
     //assert_eq!(value.contract_owner, "creator" );
     assert_eq!(value.pot_pool, 100000000000000 );
-    assert_eq!(value.fee_pool, 0 );
     //assert_eq!(value.seed, "Hello, world!" );
     assert_eq!(value.min_credit, 1000000 );
     assert_eq!(value.max_credit, 10000000 );
@@ -92,7 +91,6 @@ fn proper_initialization() {
     assert_eq!(value.lucky_number, 99999998079400 );
     assert_eq!(value2.results, 99999998079400 );
     assert_eq!(value3.pot_pool, 99999998079400 );
-    assert_eq!(value3.fee_pool, 59400 );
     //assert_eq!(value.seed, "Hello, world!" );
     assert_eq!(value3.min_credit, 1000000 );
     assert_eq!(value3.max_credit, 10000000 );

@@ -21,9 +21,8 @@ pub struct Room {
 pub struct State {
     pub contract_owner: CanonicalAddr,
     pub pot_pool: Uint128,
-    pub fee_pool: Uint128,
     pub seed : Vec<u8>,
     pub min_credit: Uint128,
     pub max_credit: Uint128,
-    pub house_fee: u64,
+    pub house_fee: u128,
 }

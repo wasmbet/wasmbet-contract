@@ -7,7 +7,7 @@ pub struct InitMsg {
     pub seed : String,
     pub min_credit: Uint128,
     pub max_credit: Uint128,
-    pub house_fee: u64,
+    pub house_fee: u128,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -22,15 +22,11 @@ pub enum HandleMsg {
         min_credit: Uint128,
     },
     TryChaingeFee{
-        fee: u64,
-    },
-    TryFeePoolWithdraw{
-        amount: Uint128
+        fee: u128,
     },
     TryPotPoolWithdraw{
         amount: Uint128
     },
-
     Ruler {
         phrase: String,
         prediction_number: u64,
@@ -50,10 +46,9 @@ pub enum QueryMsg {
 pub struct StateResponse {
     pub contract_owner: HumanAddr,
     pub pot_pool: u64,
-    pub fee_pool: u64,
     pub min_credit: u64,
     pub max_credit: u64,
-    pub house_fee: u64,
+    pub house_fee: u128,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

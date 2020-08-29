@@ -16,8 +16,7 @@ pub fn init<S: Storage, A: Api, Q: Querier>(
 ) -> StdResult<InitResponse> {
     let state = State {
         contract_owner: deps.api.canonical_address(&env.message.sender)?,
-        pot_pool: Uint128::from(100000000000000u128),
-        fee_pool: Uint128::from(0u128), 
+        pot_pool: Uint128::from(0u128),
         seed: msg.seed.as_bytes().to_vec(),
         min_credit: msg.min_credit,
         max_credit: msg.max_credit,
@@ -59,11 +58,6 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
             env,
             fee,
         ),
-        HandleMsg::TryFeePoolWithdraw{amount} => try_fee_pool_withdraw(
-            deps,
-            env,
-            &amount,
-        ),
         HandleMsg::TryPotPoolWithdraw{amount} => try_pot_pool_withdraw(
             deps,
             env,
@@ -90,12 +84,6 @@ pub fn query<S: Storage, A: Api, Q: Querier>(
         )
     }
 }
-#[derive(Clone, Debug, PartialEq)]
-pub struct PayResponse{
-    pub payout : u64,
-    pub payout_fee: u64
-}
-
 fn try_pot_pool_deposit<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
@@ -152,7 +140,7 @@ fn try_change_mincredit<S: Storage, A: Api, Q: Querier>(
 fn try_change_fee<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
-    fee: u64,
+    fee: u128,
 ) -> StdResult<HandleResponse> {
     let api = &deps.api;
     let mut state: State = serde_json::from_slice(&deps.storage.get(CONFIG_KEY).unwrap()).unwrap();
@@ -163,33 +151,7 @@ fn try_change_fee<S: Storage, A: Api, Q: Querier>(
     deps.storage.set(CONFIG_KEY, &serde_json::to_vec(&state).unwrap());
     Ok(HandleResponse::default())
 }
-fn try_fee_pool_withdraw<S: Storage, A: Api, Q: Querier>(
-    deps: &mut Extern<S, A, Q>,
-    env: Env,
-    amount: &Uint128,
-) -> StdResult<HandleResponse> {
-    let api = &deps.api;
-    let mut state: State = serde_json::from_slice(&deps.storage.get(CONFIG_KEY).unwrap()).unwrap();
-    if api.canonical_address(&env.message.sender)? != state.contract_owner {
-        return Err(StdError::generic_err(format!("not owner address")));
-    }
-    if state.fee_pool < *amount{
-        return Err(StdError::generic_err(format!("insufficient fee pool")));
-    } else if state.fee_pool > *amount{
-            let payaout = state.fee_pool - *amount;
-            state.fee_pool = payaout.unwrap();
-    }
-    deps.storage.set(CONFIG_KEY, &serde_json::to_vec(&state).unwrap());
-    let transfer = can_winer_payout(&env, *amount).unwrap();
-    let res = HandleResponse {
-        messages: vec![transfer],
-        log: vec![
-            log("action", "pot_pool_withdraw"),
-        ],
-        data: None,
-    };
-    Ok(res)
-}
+
 fn try_pot_pool_withdraw<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
@@ -238,36 +200,27 @@ pub fn payout_amount(
     prediction_number: u64,
     position: String,
     bet_amount: &Uint128,
-    fee: u64
-) -> StdResult<PayResponse>{
-    let multiplier;
+    fee: u128
+) -> StdResult<u128>{
+    let multiplier : u128;
     let payout;
-    let payout_fee;
     //98.5/99-Prediction=multiplier
     // ukrw =1000000 = 1krw 
     //98.5/Prediction=multiplier
 
     match &position[..] {
         "over" => {
-            multiplier = 98.5/(100.0-prediction_number as f64);
-            let convert_bet_amount = *bet_amount;
-            let float_bet_amount = convert_bet_amount.u128() as f64;
-            let pay = float_bet_amount * multiplier ;
-            let fee_convert = fee as f64 / 100.0;
-            payout_fee = float_bet_amount * multiplier * fee_convert;
-            payout = pay -payout_fee;
+            multiplier = (1000000 as u128- fee)/(100 as u128-prediction_number as u128);
+            let bet_amount = *bet_amount;
+            payout = bet_amount.u128() * multiplier;
         },
         _ => {
-            multiplier = 98.5/prediction_number as f64;
-            let convert_bet_amount = *bet_amount;
-            let float_bet_amount = convert_bet_amount.u128() as f64;
-            let pay = float_bet_amount * multiplier;
-            let fee_convert = fee as f64 / 100.0;
-            payout_fee = float_bet_amount * multiplier * fee_convert;
-            payout = pay -payout_fee;
+            multiplier = (1000000 as u128- fee)/prediction_number as u128;
+            let bet_amount = *bet_amount;
+            payout = bet_amount.u128() * multiplier;
         },
     }
-    Ok(PayResponse{payout: payout as u64, payout_fee: payout_fee as u64})
+    Ok(payout)
 }
 pub fn try_ruler<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
@@ -306,27 +259,27 @@ pub fn try_ruler<S: Storage, A: Api, Q: Querier>(
         }
     }
     let mut state: State = serde_json::from_slice(&deps.storage.get(CONFIG_KEY).unwrap()).unwrap();
+    
     //3.prediction check is pool amount check
-    let payout_struct = payout_amount(
+    
+    let payout = payout_amount(
         prediction_number,
         position.clone(), 
         bet_amount,
         state.house_fee
-    );
-    let payout_unwrap = payout_struct.unwrap();
-    let payout = payout_unwrap.payout;
-    let payout_fee = payout_unwrap.payout_fee;
-   
+    )?;
+
     if &position[..] == "over"{
-        if state.pot_pool < Uint128::from(payout as u128){
+        if state.pot_pool < Uint128::from(payout){
             return Err(StdError::generic_err(format!("Lack of reserves pot={}, payout={}, bet={}",state.pot_pool, payout,*bet_amount)));
         }
     } else if &position[..] == "under"{
-        if state.pot_pool < Uint128::from(payout as u128){
+        if state.pot_pool < Uint128::from(payout){
             return Err(StdError::generic_err(format!("Lack of reserves pot={}, payout={}, bet={}",state.pot_pool, payout,*bet_amount)));
         }
     }
-
+    
+    
     //4. user demon/amount check - Users should also double check
     //Minimum bet / maximum bet limit
     let mut amount_raw: Uint128 = Uint128::default();
@@ -354,7 +307,7 @@ pub fn try_ruler<S: Storage, A: Api, Q: Querier>(
     if *bet_amount > state.max_credit {
         return Err(StdError::generic_err("GTFO DIRTY DEEP STACKER"));
     }
-
+    
     //5.game state setting
     //let mut room_store = PrefixedStorage::new(ROOM_KEY, &mut deps.storage);
     let raw_address = deps.api.canonical_address(&env.message.sender)?;
@@ -415,34 +368,22 @@ pub fn try_ruler<S: Storage, A: Api, Q: Querier>(
     room_store.set(raw_address.as_slice(), &raw_room); 
 
     //10. Distribution of rewards by win and lose
-        //11-1. Compensation ratio by number
-        //11-2. fee
-        //11-3. rewards fund
-    let convert_bet_amount = *bet_amount;
-    let float_bet_amount = convert_bet_amount.u128() as f64;
-    let convert_houesfee = state.house_fee as f64 / 100.0;
-    let fee = float_bet_amount * convert_houesfee;  
-    let convert_fee= Uint128::from(fee as u128);
-
     if win_results == 1{
-        state.fee_pool += convert_fee;
-        let bet_amount_fee = *bet_amount - convert_fee;
-        state.pot_pool += bet_amount_fee.unwrap();
+        state.pot_pool += *bet_amount;
     }else if win_results == 0{
         if state.pot_pool < Uint128::from(payout as u128){
             let _ = can_winer_payout(&env, *bet_amount);
             return Err(StdError::generic_err(
                 "Lack of reserves, bet_amount refund",
             ));
-
         } else if state.pot_pool > Uint128::from(payout as u128){
-            state.fee_pool += Uint128::from(payout_fee as u128);
             let potout = state.pot_pool.u128()- payout as u128;
             let _ = can_winer_payout(&env, Uint128::from(payout as u128));
             state.pot_pool =Uint128::from(potout);
             
         }
     }
+    
     deps.storage.set(CONFIG_KEY, &serde_json::to_vec(&state).unwrap());
     Ok(HandleResponse::default())
 }
@@ -452,13 +393,11 @@ fn read_state<S: Storage, A: Api, Q: Querier>(
     let state: State = serde_json::from_slice(&deps.storage.get(CONFIG_KEY).unwrap()).unwrap();
     let owner = deps.api.human_address(&state.contract_owner)?;
     let pot = state.pot_pool.u128();
-    let fee_pool = state.fee_pool.u128();
     let min_credit = state.min_credit.u128();
     let max_credit = state.max_credit.u128();
     Ok(StateResponse{
         contract_owner: owner,
         pot_pool: pot as u64,
-        fee_pool: fee_pool as u64,
         min_credit:min_credit as u64,
         max_credit: max_credit as u64,
         house_fee: state.house_fee,
