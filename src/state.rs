@@ -13,7 +13,7 @@ pub struct Room {
     pub prediction_number: u64,
     pub lucky_number: u64,
     pub position: String,
-    pub results: u64,
+    pub results: bool,
     pub bet_amount: Uint128,
 }
 

@@ -47,7 +47,7 @@ impl Prng {
 
         let mut result = [0u8; 32];
         result.copy_from_slice(hash.as_slice());
-
+        
         let mut rng: ChaChaRng = ChaChaRng::from_seed(result);
 
         rng.set_word_pos(self.pos.into());

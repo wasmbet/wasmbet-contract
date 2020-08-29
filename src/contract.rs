@@ -75,9 +75,9 @@ pub fn query<S: Storage, A: Api, Q: Querier>(
                 deps
             )?
         ),
-        QueryMsg::GetMyRoomState{address}=> to_binary(
+        QueryMsg::Getmystate{address}=> to_binary(
             &read_root_state(
-                address,
+                &address,
                 &deps.storage,
                 &deps.api
             )?
@@ -212,12 +212,12 @@ pub fn payout_amount(
         "over" => {
             multiplier = (1000000 as u128- fee as u128)/(100 as u128-prediction_number as u128);
             let bet_amount = *bet_amount;
-            payout = bet_amount.u128() * multiplier;
+            payout = bet_amount.u128() * multiplier/10000;
         },
         _ => {
             multiplier = (1000000 as u128- fee as u128)/prediction_number as u128;
             let bet_amount = *bet_amount;
-            payout = bet_amount.u128() * multiplier;
+            payout = bet_amount.u128() * multiplier/10000;
         },
     }
     Ok(payout)
@@ -326,26 +326,27 @@ pub fn try_ruler<S: Storage, A: Api, Q: Querier>(
 
     //7. lucky_number apply
     let mut rng: Prng = Prng::new(&state.seed, &rand_entropy);
+
     let lucky_number_u32 = rng.select_one_of(99);
     let lucky_number = lucky_number_u32 as u64;
 
     //8. prediction_num/lucky_num is position check
-    // 0: win , 1: lose
+    // true: win , false: lose
     // 98.5/prediction_number
     let win_results;
     match &position[..] {
         "over" => {
             if lucky_number > prediction_number{
-                win_results = 0;
+                win_results = true;
             }else{
-                win_results = 1;
+                win_results = false;
             };
         },
         "under" => {
             if lucky_number < prediction_number{
-                win_results = 0;
+                win_results = true;
             }else{
-                win_results = 1;
+                win_results = false;
             }
         },
         _ => {
@@ -368,9 +369,9 @@ pub fn try_ruler<S: Storage, A: Api, Q: Querier>(
     room_store.set(raw_address.as_slice(), &raw_room); 
 
     //10. Distribution of rewards by win and lose
-    if win_results == 1{
+    if win_results == false{
         state.pot_pool += *bet_amount;
-    }else if win_results == 0{
+    }else if win_results == true{
         if state.pot_pool < Uint128::from(payout as u128){
             let _ = can_winer_payout(&env, *bet_amount);
             return Err(StdError::generic_err(
@@ -404,11 +405,11 @@ fn read_state<S: Storage, A: Api, Q: Querier>(
     })
 }
 fn read_root_state<S: Storage, A: Api>(
-    address: HumanAddr,
+    address: &HumanAddr,
     store: &S,
     api: &A,
 ) -> StdResult<RoomStateResponse> {
-    let owner_address = api.canonical_address(&address)?;
+    let owner_address = api.canonical_address(address)?;
     let room_store = ReadonlyPrefixedStorage::new(ROOM_KEY, store);
     let room_state = room_store.get(owner_address.as_slice()).unwrap();
     let room : Room = from_slice(&room_state).unwrap();

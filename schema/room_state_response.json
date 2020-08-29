@@ -39,9 +39,7 @@
       "minimum": 0.0
     },
     "results": {
-      "type": "integer",
-      "format": "uint64",
-      "minimum": 0.0
+      "type": "boolean"
     },
     "start_time": {
       "type": "integer",

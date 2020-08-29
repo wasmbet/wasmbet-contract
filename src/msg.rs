@@ -39,7 +39,7 @@ pub enum HandleMsg {
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
     Getstate {},
-    GetMyRoomState {address:HumanAddr},
+    Getmystate {address:HumanAddr},
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -58,6 +58,6 @@ pub struct RoomStateResponse {
     pub prediction_number: u64,
     pub lucky_number: u64,
     pub position: String,
-    pub results: u64,
+    pub results: bool,
     pub bet_amount: u64,
 }
