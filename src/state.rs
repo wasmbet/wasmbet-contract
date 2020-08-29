@@ -1,13 +1,10 @@
 use schemars::JsonSchema;
 use serde::{Deserialize, Serialize};
 
-use cosmwasm_std::{CanonicalAddr, Storage, Uint128};
-use cosmwasm_storage::{singleton, singleton_read, ReadonlySingleton, Singleton};
+use cosmwasm_std::{CanonicalAddr, Uint128};
 
 pub const CONFIG_KEY: &[u8] = b"config";
 pub const ROOM_KEY: &[u8] = b"room";
-pub const KEY_CONSTANTS: &[u8] = b"constants";
-pub const PARAMATER_KEY: &[u8] = b"parmater";
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct Room {
@@ -29,12 +26,4 @@ pub struct State {
     pub min_credit: Uint128,
     pub max_credit: Uint128,
     pub house_fee: u64,
-}
-
-pub fn config<S: Storage>(storage: &mut S) -> Singleton<S, State> {
-    singleton(storage, CONFIG_KEY)
-}
-
-pub fn config_read<S: Storage>(storage: &S) -> ReadonlySingleton<S, State> {
-    singleton_read(storage, CONFIG_KEY)
 }

@@ -952,6 +952,7 @@ dependencies = [
  "rand_core",
  "schemars",
  "serde",
+ "serde-json-wasm",
  "sha2",
 ]
 

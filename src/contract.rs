@@ -1,29 +1,29 @@
 use cosmwasm_std::{
     log, to_binary, Api, Binary, Env, Extern, HandleResponse, InitResponse, Querier, StdError,
-    StdResult, Storage, Uint128, to_vec, Coin, CosmosMsg, ReadonlyStorage, from_slice, HumanAddr, BankMsg,
+    StdResult, Storage, Uint128, to_vec, Coin, CosmosMsg,ReadonlyStorage, from_slice, HumanAddr, BankMsg,
 };
 use crate::msg::{RoomStateResponse, StateResponse, HandleMsg, InitMsg, QueryMsg};
-use crate::state::{State, Room, ROOM_KEY, KEY_CONSTANTS, PARAMATER_KEY};
+use crate::state::{State, Room, ROOM_KEY, CONFIG_KEY};
 use crate::rand::Prng;
 use cosmwasm_storage::{PrefixedStorage, ReadonlyPrefixedStorage};
 use sha2::{Digest, Sha256};
+use serde_json_wasm as serde_json;
 
 pub fn init<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
     msg: InitMsg,
 ) -> StdResult<InitResponse> {
-    let mut config_store = PrefixedStorage::new(PARAMATER_KEY, &mut deps.storage);
-    let state = to_vec(&State {
+    let state = State {
         contract_owner: deps.api.canonical_address(&env.message.sender)?,
-        pot_pool: Uint128::from(0u128),
+        pot_pool: Uint128::from(100000000000000u128),
         fee_pool: Uint128::from(0u128), 
         seed: msg.seed.as_bytes().to_vec(),
         min_credit: msg.min_credit,
         max_credit: msg.max_credit,
         house_fee: msg.house_fee,
-    })?;
-    config_store.set(KEY_CONSTANTS, &state);
+    };
+    deps.storage.set(CONFIG_KEY, &serde_json::to_vec(&state).unwrap());
     Ok(InitResponse::default())
 }
 pub fn handle<S: Storage, A: Api, Q: Querier>(
@@ -95,6 +95,7 @@ pub struct PayResponse{
     pub payout : u64,
     pub payout_fee: u64
 }
+
 fn try_pot_pool_deposit<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
@@ -112,15 +113,12 @@ fn try_pot_pool_deposit<S: Storage, A: Api, Q: Querier>(
     }
 
     let api = &deps.api;
-    let mut config_store = PrefixedStorage::new(PARAMATER_KEY, &mut deps.storage);
-    let data = config_store.get(KEY_CONSTANTS).expect("no pot_pool_deposit");
-    let mut state : State = from_slice(&data).unwrap();
+    let mut state: State = serde_json::from_slice(&deps.storage.get(CONFIG_KEY).unwrap()).unwrap();
     if api.canonical_address(&env.message.sender)? != state.contract_owner {
             return Err(StdError::generic_err(format!("not owner address")));
     }
     state.pot_pool += amount_raw;
-    config_store.set(KEY_CONSTANTS, &to_vec(&state).unwrap());    
-
+    deps.storage.set(CONFIG_KEY, &serde_json::to_vec(&state).unwrap());
     Ok(HandleResponse::default())
 }
 fn try_change_maxcredit<S: Storage, A: Api, Q: Querier>(
@@ -129,14 +127,12 @@ fn try_change_maxcredit<S: Storage, A: Api, Q: Querier>(
     max_credit: &Uint128,
 ) -> StdResult<HandleResponse> {
     let api = &deps.api;
-    let mut config_store = PrefixedStorage::new(PARAMATER_KEY, &mut deps.storage);
-    let data = config_store.get(KEY_CONSTANTS).expect("no change_maxcredit");
-    let mut state : State = from_slice(&data).unwrap();
+    let mut state: State = serde_json::from_slice(&deps.storage.get(CONFIG_KEY).unwrap()).unwrap();
     if api.canonical_address(&env.message.sender)? != state.contract_owner {
         return Err(StdError::generic_err(format!("not owner address")));
     }
     state.min_credit = *max_credit;
-    config_store.set(KEY_CONSTANTS, &to_vec(&state).unwrap()); 
+    deps.storage.set(CONFIG_KEY, &serde_json::to_vec(&state).unwrap());
     Ok(HandleResponse::default())
 }
 fn try_change_mincredit<S: Storage, A: Api, Q: Querier>(
@@ -145,14 +141,12 @@ fn try_change_mincredit<S: Storage, A: Api, Q: Querier>(
     min_credit: &Uint128,
 ) -> StdResult<HandleResponse> {
     let api = &deps.api;
-    let mut config_store = PrefixedStorage::new(PARAMATER_KEY, &mut deps.storage);
-    let data = config_store.get(KEY_CONSTANTS).expect("no change_mincredit");
-    let mut state : State = from_slice(&data).unwrap();
+    let mut state: State = serde_json::from_slice(&deps.storage.get(CONFIG_KEY).unwrap()).unwrap();
     if api.canonical_address(&env.message.sender)? != state.contract_owner {
         return Err(StdError::generic_err(format!("not owner address")));
     }
     state.min_credit = *min_credit;
-    config_store.set(KEY_CONSTANTS, &to_vec(&state).unwrap()); 
+    deps.storage.set(CONFIG_KEY, &serde_json::to_vec(&state).unwrap());
     Ok(HandleResponse::default())
 }
 fn try_change_fee<S: Storage, A: Api, Q: Querier>(
@@ -161,14 +155,12 @@ fn try_change_fee<S: Storage, A: Api, Q: Querier>(
     fee: u64,
 ) -> StdResult<HandleResponse> {
     let api = &deps.api;
-    let mut config_store = PrefixedStorage::new(PARAMATER_KEY, &mut deps.storage);
-    let data = config_store.get(KEY_CONSTANTS).expect("no pot_pool_deposit");
-    let mut state : State = from_slice(&data).unwrap();
+    let mut state: State = serde_json::from_slice(&deps.storage.get(CONFIG_KEY).unwrap()).unwrap();
     if api.canonical_address(&env.message.sender)? != state.contract_owner {
         return Err(StdError::generic_err(format!("not owner address")));
     }
     state.house_fee = fee;
-    config_store.set(KEY_CONSTANTS, &to_vec(&state).unwrap()); 
+    deps.storage.set(CONFIG_KEY, &serde_json::to_vec(&state).unwrap());
     Ok(HandleResponse::default())
 }
 fn try_fee_pool_withdraw<S: Storage, A: Api, Q: Querier>(
@@ -177,9 +169,7 @@ fn try_fee_pool_withdraw<S: Storage, A: Api, Q: Querier>(
     amount: &Uint128,
 ) -> StdResult<HandleResponse> {
     let api = &deps.api;
-    let mut config_store = PrefixedStorage::new(PARAMATER_KEY, &mut deps.storage);
-    let data = config_store.get(KEY_CONSTANTS).expect("no pot_pool_deposit");
-    let mut state : State = from_slice(&data).unwrap();
+    let mut state: State = serde_json::from_slice(&deps.storage.get(CONFIG_KEY).unwrap()).unwrap();
     if api.canonical_address(&env.message.sender)? != state.contract_owner {
         return Err(StdError::generic_err(format!("not owner address")));
     }
@@ -189,7 +179,7 @@ fn try_fee_pool_withdraw<S: Storage, A: Api, Q: Querier>(
             let payaout = state.fee_pool - *amount;
             state.fee_pool = payaout.unwrap();
     }
-    config_store.set(KEY_CONSTANTS, &to_vec(&state).unwrap());  
+    deps.storage.set(CONFIG_KEY, &serde_json::to_vec(&state).unwrap());
     let transfer = can_winer_payout(&env, *amount).unwrap();
     let res = HandleResponse {
         messages: vec![transfer],
@@ -206,9 +196,7 @@ fn try_pot_pool_withdraw<S: Storage, A: Api, Q: Querier>(
     amount: &Uint128,
 ) -> StdResult<HandleResponse> {
     let api = &deps.api;
-    let mut config_store = PrefixedStorage::new(PARAMATER_KEY, &mut deps.storage);
-    let data = config_store.get(KEY_CONSTANTS).expect("no pot_pool_withdraw");
-    let mut state : State = from_slice(&data).unwrap();
+    let mut state: State = serde_json::from_slice(&deps.storage.get(CONFIG_KEY).unwrap()).unwrap();
     if api.canonical_address(&env.message.sender)? != state.contract_owner {
         return Err(StdError::generic_err(format!("not owner address")));
     }
@@ -217,7 +205,7 @@ fn try_pot_pool_withdraw<S: Storage, A: Api, Q: Querier>(
     } else if state.pot_pool > *amount{
         let payaout = state.pot_pool - *amount;
         state.pot_pool = payaout.unwrap();
-        config_store.set(KEY_CONSTANTS, &to_vec(&state).unwrap());
+        deps.storage.set(CONFIG_KEY, &serde_json::to_vec(&state).unwrap());
     }
 
     let transfer = can_winer_payout(&env, *amount).unwrap();
@@ -230,6 +218,7 @@ fn try_pot_pool_withdraw<S: Storage, A: Api, Q: Querier>(
     };
     Ok(res)
 }
+
 pub fn can_winer_payout(
     env: &Env,
     payout_amount: Uint128,
@@ -260,7 +249,7 @@ pub fn payout_amount(
 
     match &position[..] {
         "over" => {
-            multiplier = 98.5/99.0-prediction_number as f64;
+            multiplier = 98.5/(100.0-prediction_number as f64);
             let convert_bet_amount = *bet_amount;
             let float_bet_amount = convert_bet_amount.u128() as f64;
             let pay = float_bet_amount * multiplier ;
@@ -316,28 +305,25 @@ pub fn try_ruler<S: Storage, A: Api, Q: Querier>(
             ));
         }
     }
-
-    let config_store = PrefixedStorage::new(PARAMATER_KEY, &mut deps.storage);
-    let data = config_store.get(KEY_CONSTANTS).expect("no pot_pool_withdraw");
-    let state_pool : State = from_slice(&data).unwrap();
+    let mut state: State = serde_json::from_slice(&deps.storage.get(CONFIG_KEY).unwrap()).unwrap();
     //3.prediction check is pool amount check
     let payout_struct = payout_amount(
         prediction_number,
         position.clone(), 
         bet_amount,
-        state_pool.house_fee
+        state.house_fee
     );
     let payout_unwrap = payout_struct.unwrap();
     let payout = payout_unwrap.payout;
     let payout_fee = payout_unwrap.payout_fee;
    
     if &position[..] == "over"{
-        if state_pool.pot_pool < Uint128::from(payout as u128){
-            return Err(StdError::generic_err("Lack of reserves",));
+        if state.pot_pool < Uint128::from(payout as u128){
+            return Err(StdError::generic_err(format!("Lack of reserves pot={}, payout={}, bet={}",state.pot_pool, payout,*bet_amount)));
         }
     } else if &position[..] == "under"{
-        if state_pool.pot_pool > Uint128::from(payout as u128){
-            return Err(StdError::generic_err("Lack of reserves",));
+        if state.pot_pool < Uint128::from(payout as u128){
+            return Err(StdError::generic_err(format!("Lack of reserves pot={}, payout={}, bet={}",state.pot_pool, payout,*bet_amount)));
         }
     }
 
@@ -361,16 +347,16 @@ pub fn try_ruler<S: Storage, A: Api, Q: Querier>(
     } else if env.message.sent_funds.len() == 0{
         return Err(StdError::generic_err("SHOW ME THE MONEY"));
     }
-    if *bet_amount < state_pool.min_credit {
+    if *bet_amount < state.min_credit {
         return Err(StdError::generic_err("GTFO DIRTY SHORT STACKER"));
     }
 
-    if *bet_amount > state_pool.max_credit {
+    if *bet_amount > state.max_credit {
         return Err(StdError::generic_err("GTFO DIRTY DEEP STACKER"));
     }
 
     //5.game state setting
-    let mut room_store = PrefixedStorage::new(ROOM_KEY, &mut deps.storage);
+    //let mut room_store = PrefixedStorage::new(ROOM_KEY, &mut deps.storage);
     let raw_address = deps.api.canonical_address(&env.message.sender)?;
     let mut rand_entropy: Vec<u8> = Vec::new();
 
@@ -386,10 +372,9 @@ pub fn try_ruler<S: Storage, A: Api, Q: Querier>(
 
 
     //7. lucky_number apply
-    let mut rng: Prng = Prng::new(&state_pool.seed, &rand_entropy);
+    let mut rng: Prng = Prng::new(&state.seed, &rand_entropy);
     let lucky_number_u32 = rng.select_one_of(99);
     let lucky_number = lucky_number_u32 as u64;
-    
 
     //8. prediction_num/lucky_num is position check
     // 0: win , 1: lose
@@ -397,14 +382,14 @@ pub fn try_ruler<S: Storage, A: Api, Q: Querier>(
     let win_results;
     match &position[..] {
         "over" => {
-            if lucky_number >= prediction_number{
+            if lucky_number > prediction_number{
                 win_results = 0;
             }else{
                 win_results = 1;
             };
         },
         "under" => {
-            if lucky_number <= prediction_number{
+            if lucky_number < prediction_number{
                 win_results = 0;
             }else{
                 win_results = 1;
@@ -426,48 +411,45 @@ pub fn try_ruler<S: Storage, A: Api, Q: Querier>(
         results: win_results,
         bet_amount: *bet_amount,
     })?;
+    let mut room_store = PrefixedStorage::new(ROOM_KEY, &mut deps.storage);
     room_store.set(raw_address.as_slice(), &raw_room); 
+
     //10. Distribution of rewards by win and lose
         //11-1. Compensation ratio by number
         //11-2. fee
         //11-3. rewards fund
     let convert_bet_amount = *bet_amount;
     let float_bet_amount = convert_bet_amount.u128() as f64;
-    let convert_fee = state_pool.house_fee as f64 / 100.0;
-    let fee = float_bet_amount-float_bet_amount * convert_fee;  
+    let convert_houesfee = state.house_fee as f64 / 100.0;
+    let fee = float_bet_amount * convert_houesfee;  
     let convert_fee= Uint128::from(fee as u128);
-    let mut config_store = PrefixedStorage::new(PARAMATER_KEY, &mut deps.storage);
-    let data = config_store.get(KEY_CONSTANTS).expect("no pot_pool_deposit");
-    let mut state : State = from_slice(&data).unwrap();
-    state.fee_pool += convert_fee;
 
     if win_results == 1{
+        state.fee_pool += convert_fee;
         let bet_amount_fee = *bet_amount - convert_fee;
         state.pot_pool += bet_amount_fee.unwrap();
     }else if win_results == 0{
-            state.fee_pool += Uint128::from(payout_fee as u128);
-        if state_pool.pot_pool < Uint128::from(payout as u128){
+        if state.pot_pool < Uint128::from(payout as u128){
             let _ = can_winer_payout(&env, *bet_amount);
             return Err(StdError::generic_err(
                 "Lack of reserves, bet_amount refund",
             ));
 
-        } else if state_pool.pot_pool > Uint128::from(payout as u128){
-            let potout = state_pool.pot_pool.u128()- payout as u128;
+        } else if state.pot_pool > Uint128::from(payout as u128){
+            state.fee_pool += Uint128::from(payout_fee as u128);
+            let potout = state.pot_pool.u128()- payout as u128;
             let _ = can_winer_payout(&env, Uint128::from(payout as u128));
             state.pot_pool =Uint128::from(potout);
             
         }
     }
-    config_store.set(KEY_CONSTANTS, &to_vec(&state).unwrap()); 
+    deps.storage.set(CONFIG_KEY, &serde_json::to_vec(&state).unwrap());
     Ok(HandleResponse::default())
 }
 fn read_state<S: Storage, A: Api, Q: Querier>(
     deps: &Extern<S, A, Q>
 ) -> StdResult<StateResponse> {
-    let config_store = ReadonlyPrefixedStorage::new(PARAMATER_KEY, &deps.storage);
-    let data = config_store.get(KEY_CONSTANTS).expect("no pot_pool_deposit");
-    let state : State = from_slice(&data).unwrap();
+    let state: State = serde_json::from_slice(&deps.storage.get(CONFIG_KEY).unwrap()).unwrap();
     let owner = deps.api.human_address(&state.contract_owner)?;
     let pot = state.pot_pool.u128();
     let fee_pool = state.fee_pool.u128();
@@ -482,7 +464,6 @@ fn read_state<S: Storage, A: Api, Q: Querier>(
         house_fee: state.house_fee,
     })
 }
-
 fn read_root_state<S: Storage, A: Api>(
     address: HumanAddr,
     store: &S,

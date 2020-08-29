@@ -17,7 +17,7 @@
 //!      });
 //! 4. Anywhere you see query(&deps, ...) you must replace it with query(&mut deps, ...)
 
-use cosmwasm_std::{coins, from_binary, HandleResponse, HandleResult, InitResponse, StdError,Uint128};
+use cosmwasm_std::{ HumanAddr,coins, from_binary, HandleResponse, HandleResult, InitResponse, StdError,Uint128};
 use cosmwasm_vm::testing::{handle, init, mock_env, mock_instance, query};
 
 use wasmbet_contract_dice::msg::{RoomStateResponse,StateResponse, HandleMsg, InitMsg, QueryMsg};
@@ -46,26 +46,63 @@ fn proper_initialization() {
     // it worked, let's query the state
     let res = query(&mut deps, QueryMsg::Getstate{}).unwrap();
     let value: StateResponse = from_binary(&res).unwrap();
+    //assert_eq!(value.contract_owner, "creator" );
+    assert_eq!(value.pot_pool, 100000000000000 );
+    assert_eq!(value.fee_pool, 0 );
+    //assert_eq!(value.seed, "Hello, world!" );
     assert_eq!(value.min_credit, 1000000 );
-
-
-    let env = mock_env("creator", &coins(2000000, "ukrw"));
-    let seed = String::from("Hello, world!");
+    assert_eq!(value.max_credit, 10000000 );
+    assert_eq!(value.house_fee, 1 );
+    
+    let mut env = mock_env("creator", &coins(2000000, "ukrw"));
+    env.block.height = 2;
+    env.block.time = 1232342344153;
+    let env2 = mock_env("creator2", &coins(2000000, "ukrw"));
+    let seed = String::from("Hello, world!123312");
+    let seed2 = String::from("Hello, world!2");
     let under = String::from("under");
-    let Ruler = HandleMsg::Ruler {
+    let over = String::from("under");
+    let ruler = HandleMsg::Ruler {
             phrase: seed,
             prediction_number:50,
             position: under,
             bet_amount: Uint128::from(2000000u128),
     };
-    let try_ruler_response: HandleResponse = handle(&mut deps, env, Ruler).unwrap();
+    let ruler2 = HandleMsg::Ruler {
+            phrase: seed2,
+            prediction_number:50,
+            position: over,
+            bet_amount: Uint128::from(2000000u128),
+    };
+    let try_ruler_response: HandleResponse = handle(&mut deps, env, ruler).unwrap();
     assert_eq!(try_ruler_response.messages.len(), 0);
-
+    let try_ruler_response2: HandleResponse = handle(&mut deps, env2, ruler2).unwrap();
+    assert_eq!(try_ruler_response2.messages.len(), 0);
     // it worked, let's query the state
-    //let addres = deps.api.human_address(&env.message.sender);
-    //let res = query(&mut deps, QueryMsg::GetMyRoomState{address:addres}).unwrap();
-    //let value: RoomStateResponse = from_binary(&res).unwrap();
-    //assert_eq!(value.min_credit, 1000000 );
+    
+    let addres = HumanAddr("creator".to_string());
+    let addres2 = HumanAddr("creator2".to_string());
+    let res = query(&mut deps, QueryMsg::GetMyRoomState{address:addres}).unwrap();
+    let value: RoomStateResponse = from_binary(&res).unwrap();
+    let res2 = query(&mut deps, QueryMsg::GetMyRoomState{address:addres2}).unwrap();
+    let value2: RoomStateResponse = from_binary(&res2).unwrap();
+    let res3 = query(&mut deps, QueryMsg::Getstate{}).unwrap();
+    let value3: StateResponse = from_binary(&res3).unwrap();
+    //assert_eq!(value.contract_owner, "creator" );
+    assert_eq!(value.lucky_number, 99999998079400 );
+    assert_eq!(value2.results, 99999998079400 );
+    assert_eq!(value3.pot_pool, 99999998079400 );
+    assert_eq!(value3.fee_pool, 59400 );
+    //assert_eq!(value.seed, "Hello, world!" );
+    assert_eq!(value3.min_credit, 1000000 );
+    assert_eq!(value3.max_credit, 10000000 );
+    assert_eq!(value3.house_fee, 1 );
+    assert_eq!(value.prediction_number, 50 );
+    assert_eq!(value.position, "under" );
+    assert_eq!(value.bet_amount, 2000000 );
+    assert_eq!(value2.prediction_number, 50 );
+    assert_eq!(value2.position, "over" );
+    assert_eq!(value2.bet_amount, 2000000 );
 
 
 }
