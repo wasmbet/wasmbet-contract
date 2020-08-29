@@ -64,27 +64,9 @@
           ],
           "properties": {
             "fee": {
-              "type": "number",
-              "format": "double"
-            }
-          }
-        }
-      }
-    },
-    {
-      "type": "object",
-      "required": [
-        "try_fee_pool_withdraw"
-      ],
-      "properties": {
-        "try_fee_pool_withdraw": {
-          "type": "object",
-          "required": [
-            "amount"
-          ],
-          "properties": {
-            "amount": {
-              "$ref": "#/definitions/Uint128"
+              "type": "integer",
+              "format": "uint64",
+              "minimum": 0.0
             }
           }
         }
@@ -135,7 +117,7 @@
             },
             "prediction_number": {
               "type": "integer",
-              "format": "uint32",
+              "format": "uint64",
               "minimum": 0.0
             }
           }

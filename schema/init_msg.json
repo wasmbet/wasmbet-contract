@@ -10,8 +10,9 @@
   ],
   "properties": {
     "house_fee": {
-      "type": "number",
-      "format": "double"
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0.0
     },
     "max_credit": {
       "$ref": "#/definitions/Uint128"

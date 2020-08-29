@@ -14,7 +14,7 @@
   "properties": {
     "bet_amount": {
       "type": "integer",
-      "format": "uint128",
+      "format": "uint64",
       "minimum": 0.0
     },
     "entropy": {
@@ -27,7 +27,7 @@
     },
     "lucky_number": {
       "type": "integer",
-      "format": "uint32",
+      "format": "uint64",
       "minimum": 0.0
     },
     "position": {
@@ -35,12 +35,12 @@
     },
     "prediction_number": {
       "type": "integer",
-      "format": "uint32",
+      "format": "uint64",
       "minimum": 0.0
     },
     "results": {
       "type": "integer",
-      "format": "uint8",
+      "format": "uint64",
       "minimum": 0.0
     },
     "start_time": {

@@ -4,7 +4,6 @@
   "type": "object",
   "required": [
     "contract_owner",
-    "fee_pool",
     "house_fee",
     "max_credit",
     "min_credit",
@@ -14,28 +13,24 @@
     "contract_owner": {
       "$ref": "#/definitions/HumanAddr"
     },
-    "fee_pool": {
-      "type": "integer",
-      "format": "uint128",
-      "minimum": 0.0
-    },
     "house_fee": {
-      "type": "number",
-      "format": "double"
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0.0
     },
     "max_credit": {
       "type": "integer",
-      "format": "uint128",
+      "format": "uint64",
       "minimum": 0.0
     },
     "min_credit": {
       "type": "integer",
-      "format": "uint128",
+      "format": "uint64",
       "minimum": 0.0
     },
     "pot_pool": {
       "type": "integer",
-      "format": "uint128",
+      "format": "uint64",
       "minimum": 0.0
     }
   },

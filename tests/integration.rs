@@ -31,11 +31,12 @@ static WASM: &[u8] = include_bytes!("../target/wasm32-unknown-unknown/release/wa
 fn proper_initialization() {
     let mut deps = mock_instance(WASM, &[]);
     let seed = String::from("Hello, world!");
+    let fee = 15000 as u64;
     let msg = InitMsg {
          seed: seed, 
          min_credit: Uint128::from(1000000u128), 
          max_credit: Uint128::from(10000000u128), 
-         house_fee: 1,
+         house_fee: fee,
         };
     let env = mock_env("creator", &coins(10000000000000000, "ukrw"));
 

@@ -140,7 +140,7 @@ fn try_change_mincredit<S: Storage, A: Api, Q: Querier>(
 fn try_change_fee<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
-    fee: u128,
+    fee: u64,
 ) -> StdResult<HandleResponse> {
     let api = &deps.api;
     let mut state: State = serde_json::from_slice(&deps.storage.get(CONFIG_KEY).unwrap()).unwrap();
@@ -200,7 +200,7 @@ pub fn payout_amount(
     prediction_number: u64,
     position: String,
     bet_amount: &Uint128,
-    fee: u128
+    fee: u64
 ) -> StdResult<u128>{
     let multiplier : u128;
     let payout;
@@ -210,12 +210,12 @@ pub fn payout_amount(
 
     match &position[..] {
         "over" => {
-            multiplier = (1000000 as u128- fee)/(100 as u128-prediction_number as u128);
+            multiplier = (1000000 as u128- fee as u128)/(100 as u128-prediction_number as u128);
             let bet_amount = *bet_amount;
             payout = bet_amount.u128() * multiplier;
         },
         _ => {
-            multiplier = (1000000 as u128- fee)/prediction_number as u128;
+            multiplier = (1000000 as u128- fee as u128)/prediction_number as u128;
             let bet_amount = *bet_amount;
             payout = bet_amount.u128() * multiplier;
         },

@@ -4,7 +4,6 @@
   "type": "object",
   "required": [
     "contract_owner",
-    "fee_pool",
     "house_fee",
     "max_credit",
     "min_credit",
@@ -15,12 +14,10 @@
     "contract_owner": {
       "$ref": "#/definitions/CanonicalAddr"
     },
-    "fee_pool": {
-      "$ref": "#/definitions/Uint128"
-    },
     "house_fee": {
-      "type": "number",
-      "format": "double"
+      "type": "integer",
+      "format": "uint64",
+      "minimum": 0.0
     },
     "max_credit": {
       "$ref": "#/definitions/Uint128"

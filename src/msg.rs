@@ -7,7 +7,7 @@ pub struct InitMsg {
     pub seed : String,
     pub min_credit: Uint128,
     pub max_credit: Uint128,
-    pub house_fee: u128,
+    pub house_fee: u64,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -22,7 +22,7 @@ pub enum HandleMsg {
         min_credit: Uint128,
     },
     TryChaingeFee{
-        fee: u128,
+        fee: u64,
     },
     TryPotPoolWithdraw{
         amount: Uint128
@@ -48,7 +48,7 @@ pub struct StateResponse {
     pub pot_pool: u64,
     pub min_credit: u64,
     pub max_credit: u64,
-    pub house_fee: u128,
+    pub house_fee: u64,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]

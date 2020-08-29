@@ -24,5 +24,5 @@ pub struct State {
     pub seed : Vec<u8>,
     pub min_credit: Uint128,
     pub max_credit: Uint128,
-    pub house_fee: u128,
+    pub house_fee: u64,
 }
