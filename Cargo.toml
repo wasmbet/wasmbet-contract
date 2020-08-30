@@ -27,16 +27,12 @@ incremental = false
 overflow-checks = true
 
 [features]
-default = ["cranelift"]
-# for quicker tests, cargo test --lib
-# for more explicit tests, cargo test --features=backtraces
-backtraces = ["cosmwasm-std/backtraces", "cosmwasm-vm/backtraces"]
-cranelift = ["cosmwasm-vm/default-cranelift"]
-singlepass = ["cosmwasm-vm/default-singlepass"]
+default = []
+backtraces = ["cosmwasm-std/backtraces"]
 
 [dependencies]
-cosmwasm-std = { version = "0.10.0" }
-cosmwasm-storage = { version = "0.10.0" }
+cosmwasm-std = { git = "https://github.com/enigmampc/SecretNetwork", tag = "v0.7.0" }
+cosmwasm-storage = { git = "https://github.com/enigmampc/SecretNetwork", tag = "v0.7.0" }
 schemars = "0.7"
 serde = { version = "1.0.114", default-features = false, features = [
   "derive",
@@ -46,7 +42,3 @@ rand_chacha = "0.2.2"
 rand_core = "0.5.1"
 sha2 = "0.9.1"
 serde-json-wasm = "0.2.1"
-
-[dev-dependencies]
-cosmwasm-vm = { version = "0.10.0", default-features = false }
-cosmwasm-schema = { version = "0.10.0" }
