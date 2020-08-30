@@ -3,12 +3,11 @@
 
 ```sh
 RUSTFLAGS='-C link-arg=-s' cargo build --release --target wasm32-unknown-unknown
-terracli tx wasm store target/wasm32-unknown-unknown/release/wasmbet_contract_dice.wasm --from validator --chain-id tequila-0002 --gas 2000000 --node tcp://127.0.0.1:16657
-terracli q tx <txhash> --trust-node --node tcp://127.0.0.1:16657 | grep code_id
-terracli  tx wasm instantiate 40 '{"seed":"<rand seed>","min_credit":"<min>","max_credit":"<max>","house_fee":<fee>}' --from validator --node tcp://127.0.0.1:16657 --chain-id tequila-0002
-terracli q tx <txhash> --trust-node --node tcp://127.0.0.1:16657 | grep contract_address
-terracli tx wasm execute <contract_address> '{"try_pot_pool_deposit":{}}' 100000000ukrw --from validator --node tcp://127.0.0.1:16657 --chain-id tequila-0002
-terracli tx wasm execute <contract_address>'{"ruler":{"phrase":"allinbitewjkrwerlwerwerbfcwl","prediction_number":50,"position":"under","bet_amount":"1000000"}}' 1000000ukrw --from validator --node tcp://127.0.0.1:16657 --chain-id tequila-0002
-terracli q wasm contract-store <contract_address> '{"getstate":{}}' --node tcp://127.0.0.1:16657 --chain-id tequila-0002
-terracli q wasm contract-store <contract_address> '{"getmystate":{"address":"<bet address>"}}' --node tcp://127.0.0.1:16657 --chain-id tequila-0002 
+secretcli tx compute store contract.wasm.gz --from wasmbet_contract_dice.wasm --gas auto -y
+secretcli query compute list-code
+secretcli tx compute instantiate 140 --label wasmbet '{"seed":"allinbiteqwe","min_credit":"1000000","max_credit":"10000000","house_fee":1500}' --from wasmbetv
+secretcli tx compute execute secret1yug7wrsjyeufpfghuhwfzef0hqrmyju9kftzgl '{"try_pot_pool_deposit":{}}' 100000000uscrt --from wasmbetv
+secretcli q compute query secret1yug7wrsjyeufpfghuhwfzef0hqrmyju9kftzgl '{"getstate":{}}' 
+secretcli tx compute execute secret1yug7wrsjyeufpfghuhwfzef0hqrmyju9kftzgl '{"ruler":{"phrase":"allinbitewjkrwerlwerwerbfcwl","prediction_number":50,"position":"under","bet_amount":"1000000"}}' --amount 1000000uscrt --from wasmbetv
+secretcli q compute query secret1yug7wrsjyeufpfghuhwfzef0hqrmyju9kftzgl '{"getmystate":{"address":"secret1jzrfydf9a0v4ame8feh33k9en7mklmh9u9p30l"}}' 
 ```
