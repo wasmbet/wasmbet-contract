@@ -213,12 +213,12 @@ pub fn payout_amount(
 
     match &position[..] {
         "over" => {
-            multiplier = (1000000 as u128- fee as u128)/(100 as u128-prediction_number as u128);
+            multiplier = (1000000 as u128- fee as u128)/(99 as u128-(prediction_number as u128*5/3));
             let bet_amount = *bet_amount;
             payout = bet_amount.u128() * multiplier/10000;
         },
         _ => {
-            multiplier = (1000000 as u128- fee as u128)/prediction_number as u128;
+            multiplier = (1000000 as u128- fee as u128)/prediction_number as u128*5/3;
             let bet_amount = *bet_amount;
             payout = bet_amount.u128() * multiplier/10000;
         },
@@ -247,17 +247,18 @@ pub fn try_ruler<S: Storage, A: Api, Q: Querier>(
     }
 
     //2. prediction check
-    if &position[..] != "over"{
-        if prediction_number < 4 && prediction_number > 98 {
+    if &position[..] == "over"{
+        if prediction_number < 2 || prediction_number > 58 {
             return Err(generic_err(
-                "prediction number, 4~98",
+                "prediction number, 2~58",
             ));
         }
     }
-    if &position[..] != "under"{
-        if prediction_number < 1 && prediction_number > 95 {
+
+    if &position[..] == "under"{
+        if prediction_number < 1 || prediction_number > 57 {
             return Err(generic_err(
-                "prediction number, 1~95",
+                "prediction number, 1~57",
             ));
         }
     }
@@ -330,7 +331,7 @@ pub fn try_ruler<S: Storage, A: Api, Q: Querier>(
     //7. lucky_number apply
     let mut rng: Prng = Prng::new(&state.seed, &rand_entropy);
 
-    let lucky_number_u32 = rng.select_one_of(99);
+    let lucky_number_u32 = rng.select_one_of(59);
     let lucky_number = lucky_number_u32 as u64;
 
     //8. prediction_num/lucky_num is position check
