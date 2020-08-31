@@ -1,5 +1,5 @@
 [package]
-name = "wasmbet-contract-dice"
+name = "wasmbet-contract-timeroulette"
 version = "0.1.0"
 authors = ["wasmbet <wasmbet@gmail.com>"]
 edition = "2018"
