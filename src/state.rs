@@ -13,7 +13,7 @@ pub struct Room {
     pub prediction_number: u64,
     pub lucky_number: u64,
     pub position: String,
-    pub results: bool,
+    pub win_results: bool,
     pub bet_amount: Uint128,
 }
 
@@ -22,7 +22,7 @@ pub struct State {
     pub contract_owner: CanonicalAddr,
     pub pot_pool: Uint128,
     pub seed : Vec<u8>,
-    pub min_credit: Uint128,
-    pub max_credit: Uint128,
+    pub min_amount: Uint128,
+    pub max_amount: Uint128,
     pub house_fee: u64,
 }

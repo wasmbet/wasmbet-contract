@@ -18,8 +18,8 @@ pub fn init<S: Storage, A: Api, Q: Querier>(
         contract_owner: deps.api.canonical_address(&env.message.sender)?,
         pot_pool: Uint128::from(0u128),
         seed: msg.seed.as_bytes().to_vec(),
-        min_credit: msg.min_credit,
-        max_credit: msg.max_credit,
+        min_amount: msg.min_amount,
+        max_amount: msg.max_amount,
         house_fee: msg.house_fee,
     };
     deps.storage.set(CONFIG_KEY, &serde_json::to_vec(&state).unwrap());
@@ -43,15 +43,15 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
             deps, 
             env,
         ),
-        HandleMsg::TryChangeMaxcredit{max_credit} => try_change_maxcredit(
+        HandleMsg::TryChangeMaxamount{max_amount} => try_change_maxamount(
             deps, 
             env, 
-            &max_credit,
+            &max_amount,
         ),
-        HandleMsg::TryChangeMincredit{min_credit} => try_change_mincredit(
+        HandleMsg::TryChangeMinamount{min_amount} => try_change_minamount(
             deps, 
             env, 
-            &min_credit,
+            &min_amount,
         ),
         HandleMsg::TryChaingeFee{fee} => try_change_fee(
             deps,
@@ -109,31 +109,31 @@ fn try_pot_pool_deposit<S: Storage, A: Api, Q: Querier>(
     deps.storage.set(CONFIG_KEY, &serde_json::to_vec(&state).unwrap());
     Ok(HandleResponse::default())
 }
-fn try_change_maxcredit<S: Storage, A: Api, Q: Querier>(
+fn try_change_maxamount<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
-    max_credit: &Uint128,
+    max_amount: &Uint128,
 ) -> StdResult<HandleResponse> {
     let api = &deps.api;
     let mut state: State = serde_json::from_slice(&deps.storage.get(CONFIG_KEY).unwrap()).unwrap();
     if api.canonical_address(&env.message.sender)? != state.contract_owner {
         return Err(StdError::generic_err(format!("not owner address")));
     }
-    state.min_credit = *max_credit;
+    state.min_amount = *max_amount;
     deps.storage.set(CONFIG_KEY, &serde_json::to_vec(&state).unwrap());
     Ok(HandleResponse::default())
 }
-fn try_change_mincredit<S: Storage, A: Api, Q: Querier>(
+fn try_change_minamount<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
-    min_credit: &Uint128,
+    min_amount: &Uint128,
 ) -> StdResult<HandleResponse> {
     let api = &deps.api;
     let mut state: State = serde_json::from_slice(&deps.storage.get(CONFIG_KEY).unwrap()).unwrap();
     if api.canonical_address(&env.message.sender)? != state.contract_owner {
         return Err(StdError::generic_err(format!("not owner address")));
     }
-    state.min_credit = *min_credit;
+    state.min_amount = *min_amount;
     deps.storage.set(CONFIG_KEY, &serde_json::to_vec(&state).unwrap());
     Ok(HandleResponse::default())
 }
@@ -163,7 +163,7 @@ fn try_pot_pool_withdraw<S: Storage, A: Api, Q: Querier>(
         return Err(StdError::generic_err(format!("not owner address")));
     }
     if state.pot_pool < *amount{
-        return Err(StdError::generic_err(format!("insufficient fee pool")));
+        return Err(StdError::generic_err(format!("insufficient pot pool")));
     } else if state.pot_pool > *amount{
         let payaout = state.pot_pool - *amount;
         state.pot_pool = payaout.unwrap();
@@ -295,18 +295,18 @@ pub fn try_ruler<S: Storage, A: Api, Q: Querier>(
     }
     if amount_raw != *bet_amount {
         return Err(StdError::generic_err(format!(
-            "Insufficient uscrt deposit: bet_amount={}, required={}",
+            "Insufficient uscrt set amount: bet_amount={}, required={}",
             *bet_amount, amount_raw
         )));
     } else if env.message.sent_funds.len() == 0{
-        return Err(StdError::generic_err("SHOW ME THE MONEY"));
+        return Err(StdError::generic_err("There is no money in the wallet"));
     }
-    if *bet_amount < state.min_credit {
-        return Err(StdError::generic_err("GTFO DIRTY SHORT STACKER"));
+    if *bet_amount < state.min_amount {
+        return Err(StdError::generic_err("Below the minimum bet amount."));
     }
 
-    if *bet_amount > state.max_credit {
-        return Err(StdError::generic_err("GTFO DIRTY DEEP STACKER"));
+    if *bet_amount > state.max_amount {
+        return Err(StdError::generic_err("The maximum bet amount is exceeded."));
     }
     
     //5.game state setting
@@ -363,7 +363,7 @@ pub fn try_ruler<S: Storage, A: Api, Q: Querier>(
         prediction_number: prediction_number,
         lucky_number: lucky_number,
         position: position,
-        results: win_results,
+        win_results: win_results,
         bet_amount: *bet_amount,
     })?;
     let mut room_store = PrefixedStorage::new(ROOM_KEY, &mut deps.storage);
@@ -397,13 +397,13 @@ fn read_state<S: Storage, A: Api, Q: Querier>(
     let state: State = serde_json::from_slice(&deps.storage.get(CONFIG_KEY).unwrap()).unwrap();
     let owner = deps.api.human_address(&state.contract_owner)?;
     let pot = state.pot_pool.u128();
-    let min_credit = state.min_credit.u128();
-    let max_credit = state.max_credit.u128();
+    let min_amount = state.min_amount.u128();
+    let max_amount = state.max_amount.u128();
     Ok(StateResponse{
         contract_owner: owner,
         pot_pool: pot as u64,
-        min_credit:min_credit as u64,
-        max_credit: max_credit as u64,
+        min_amount: min_amount as u64,
+        max_amount: max_amount as u64,
         house_fee: state.house_fee,
     })
 }
@@ -423,8 +423,7 @@ fn read_root_state<S: Storage, A: Api>(
         prediction_number: room.prediction_number,
         lucky_number: room.lucky_number,
         position: room.position,
-        results: room.results,
+        win_results: room.win_results,
         bet_amount: amount as u64,
     })
-
 }

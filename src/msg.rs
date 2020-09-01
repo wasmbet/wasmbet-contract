@@ -5,8 +5,8 @@ use serde::{Deserialize, Serialize};
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 pub struct InitMsg {
     pub seed : String,
-    pub min_credit: Uint128,
-    pub max_credit: Uint128,
+    pub min_amount: Uint128,
+    pub max_amount: Uint128,
     pub house_fee: u64,
 }
 
@@ -15,11 +15,11 @@ pub struct InitMsg {
 pub enum HandleMsg {
     TryPotPoolDeposit{
     },
-    TryChangeMaxcredit{
-        max_credit: Uint128,
+    TryChangeMaxamount{
+        max_amount: Uint128,
     },
-    TryChangeMincredit{
-        min_credit: Uint128,
+    TryChangeMinamount{
+        min_amount: Uint128,
     },
     TryChaingeFee{
         fee: u64,
@@ -46,8 +46,8 @@ pub enum QueryMsg {
 pub struct StateResponse {
     pub contract_owner: HumanAddr,
     pub pot_pool: u64,
-    pub min_credit: u64,
-    pub max_credit: u64,
+    pub min_amount: u64,
+    pub max_amount: u64,
     pub house_fee: u64,
 }
 
@@ -58,6 +58,6 @@ pub struct RoomStateResponse {
     pub prediction_number: u64,
     pub lucky_number: u64,
     pub position: String,
-    pub results: bool,
+    pub win_results: bool,
     pub bet_amount: u64,
 }
