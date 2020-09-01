@@ -1,5 +1,5 @@
 use cosmwasm_std::{
-    log, to_binary, Api, Binary, Env, Extern, HandleResponse, InitResponse, Querier, generic_err,
+    log, to_binary, Api, Binary, Env, Extern, HandleResponse, InitResponse, Querier, StdError,
     StdResult, Storage, Uint128, to_vec, Coin, CosmosMsg,ReadonlyStorage, from_slice, HumanAddr, BankMsg,
 };
 use crate::msg::{RoomStateResponse, StateResponse, HandleMsg, InitMsg, QueryMsg};
@@ -15,7 +15,7 @@ pub fn init<S: Storage, A: Api, Q: Querier>(
     msg: InitMsg,
 ) -> StdResult<InitResponse> {
     let state = State {
-        contract_owner: env.message.sender,
+        contract_owner: deps.api.canonical_address(&env.message.sender)?,
         pot_pool: Uint128::from(0u128),
         seed: msg.seed.as_bytes().to_vec(),
         min_credit: msg.min_credit,
@@ -97,13 +97,13 @@ fn try_pot_pool_deposit<S: Storage, A: Api, Q: Querier>(
     }
 
     if amount_raw == Uint128::default() {
-        return Err(generic_err(format!("Lol send some funds dude")));
+        return Err(StdError::generic_err(format!("Lol send some funds dude")));
     }
 
-    
+    let api = &deps.api;
     let mut state: State = serde_json::from_slice(&deps.storage.get(CONFIG_KEY).unwrap()).unwrap();
-    if env.message.sender != state.contract_owner {
-            return Err(generic_err(format!("not owner address")));
+    if api.canonical_address(&env.message.sender)? != state.contract_owner {
+            return Err(StdError::generic_err(format!("not owner address")));
     }
     state.pot_pool += amount_raw;
     deps.storage.set(CONFIG_KEY, &serde_json::to_vec(&state).unwrap());
@@ -114,10 +114,10 @@ fn try_change_maxcredit<S: Storage, A: Api, Q: Querier>(
     env: Env,
     max_credit: &Uint128,
 ) -> StdResult<HandleResponse> {
-    
+    let api = &deps.api;
     let mut state: State = serde_json::from_slice(&deps.storage.get(CONFIG_KEY).unwrap()).unwrap();
-    if env.message.sender != state.contract_owner {
-        return Err(generic_err(format!("not owner address")));
+    if api.canonical_address(&env.message.sender)? != state.contract_owner {
+        return Err(StdError::generic_err(format!("not owner address")));
     }
     state.min_credit = *max_credit;
     deps.storage.set(CONFIG_KEY, &serde_json::to_vec(&state).unwrap());
@@ -128,9 +128,10 @@ fn try_change_mincredit<S: Storage, A: Api, Q: Querier>(
     env: Env,
     min_credit: &Uint128,
 ) -> StdResult<HandleResponse> {
+    let api = &deps.api;
     let mut state: State = serde_json::from_slice(&deps.storage.get(CONFIG_KEY).unwrap()).unwrap();
-    if env.message.sender != state.contract_owner {
-        return Err(generic_err(format!("not owner address")));
+    if api.canonical_address(&env.message.sender)? != state.contract_owner {
+        return Err(StdError::generic_err(format!("not owner address")));
     }
     state.min_credit = *min_credit;
     deps.storage.set(CONFIG_KEY, &serde_json::to_vec(&state).unwrap());
@@ -141,9 +142,10 @@ fn try_change_fee<S: Storage, A: Api, Q: Querier>(
     env: Env,
     fee: u64,
 ) -> StdResult<HandleResponse> {
+    let api = &deps.api;
     let mut state: State = serde_json::from_slice(&deps.storage.get(CONFIG_KEY).unwrap()).unwrap();
-    if env.message.sender != state.contract_owner {
-        return Err(generic_err(format!("not owner address")));
+    if api.canonical_address(&env.message.sender)? != state.contract_owner {
+        return Err(StdError::generic_err(format!("not owner address")));
     }
     state.house_fee = fee;
     deps.storage.set(CONFIG_KEY, &serde_json::to_vec(&state).unwrap());
@@ -155,19 +157,20 @@ fn try_pot_pool_withdraw<S: Storage, A: Api, Q: Querier>(
     env: Env,
     amount: &Uint128,
 ) -> StdResult<HandleResponse> {
+    let api = &deps.api;
     let mut state: State = serde_json::from_slice(&deps.storage.get(CONFIG_KEY).unwrap()).unwrap();
-    if env.message.sender != state.contract_owner {
-        return Err(generic_err(format!("not owner address")));
+    if api.canonical_address(&env.message.sender)? != state.contract_owner {
+        return Err(StdError::generic_err(format!("not owner address")));
     }
     if state.pot_pool < *amount{
-        return Err(generic_err(format!("insufficient fee pool")));
+        return Err(StdError::generic_err(format!("insufficient fee pool")));
     } else if state.pot_pool > *amount{
         let payaout = state.pot_pool - *amount;
         state.pot_pool = payaout.unwrap();
         deps.storage.set(CONFIG_KEY, &serde_json::to_vec(&state).unwrap());
     }
 
-    let transfer = can_winer_payout(deps, env, *amount).unwrap();
+    let transfer = can_winer_payout(&env, *amount).unwrap();
     let res = HandleResponse {
         messages: vec![transfer],
         log: vec![
@@ -178,19 +181,13 @@ fn try_pot_pool_withdraw<S: Storage, A: Api, Q: Querier>(
     Ok(res)
 }
 
-pub fn can_winer_payout<S: Storage, A: Api, Q: Querier>(
-    deps: &mut Extern<S, A, Q>,
-    env : Env,
-    //from: &HumanAddr,
-    //to : &HumanAddr,
+pub fn can_winer_payout(
+    env : &Env,
     payout_amount: Uint128,
 )-> StdResult<CosmosMsg> {
-    let contract_addr = deps.api.human_address(&env.contract.address)?;
-    //let withdrawl_addr = deps.api.human_address(&env.message.sender)?;
-    //let from_address = *from;
     let token_transfer = BankMsg::Send {
-        from_address: contract_addr,
-        to_address: deps.api.human_address(&env.message.sender)?,
+        from_address: env.contract.address.clone(),
+        to_address: env.message.sender.clone(),
         amount: vec![Coin {
             denom: "uscrt".to_string(),
             amount: payout_amount,
@@ -237,11 +234,11 @@ pub fn try_ruler<S: Storage, A: Api, Q: Querier>(
 
     //1. position check 
     if &position[..] == ""{
-        return Err(generic_err(
+        return Err(StdError::generic_err(
             "position empty",
         ));
     }else if &position[..] != "under" && &position[..] != "over"{
-        return Err(generic_err(
+        return Err(StdError::generic_err(
             "position not under/over",
         ));
     }
@@ -249,7 +246,7 @@ pub fn try_ruler<S: Storage, A: Api, Q: Querier>(
     //2. prediction check
     if &position[..] == "over"{
         if prediction_number < 2 || prediction_number > 58 {
-            return Err(generic_err(
+            return Err(StdError::generic_err(
                 "prediction number, 2~58",
             ));
         }
@@ -257,7 +254,7 @@ pub fn try_ruler<S: Storage, A: Api, Q: Querier>(
 
     if &position[..] == "under"{
         if prediction_number < 1 || prediction_number > 57 {
-            return Err(generic_err(
+            return Err(StdError::generic_err(
                 "prediction number, 1~57",
             ));
         }
@@ -275,11 +272,11 @@ pub fn try_ruler<S: Storage, A: Api, Q: Querier>(
 
     if &position[..] == "over"{
         if state.pot_pool < Uint128::from(payout){
-            return Err(generic_err(format!("Lack of reserves pot={}, payout={}, bet={}",state.pot_pool, payout,*bet_amount)));
+            return Err(StdError::generic_err(format!("Lack of reserves pot={}, payout={}, bet={}",state.pot_pool, payout,*bet_amount)));
         }
     } else if &position[..] == "under"{
         if state.pot_pool < Uint128::from(payout){
-            return Err(generic_err(format!("Lack of reserves pot={}, payout={}, bet={}",state.pot_pool, payout,*bet_amount)));
+            return Err(StdError::generic_err(format!("Lack of reserves pot={}, payout={}, bet={}",state.pot_pool, payout,*bet_amount)));
         }
     }
     
@@ -291,30 +288,30 @@ pub fn try_ruler<S: Storage, A: Api, Q: Querier>(
         if coin.denom == "uscrt" {
             amount_raw = coin.amount
         } else{
-            return Err(generic_err(format!(
+            return Err(StdError::generic_err(format!(
                 "Insufficient uscrt denom",
             )));
         }
     }
     if amount_raw != *bet_amount {
-        return Err(generic_err(format!(
+        return Err(StdError::generic_err(format!(
             "Insufficient uscrt deposit: bet_amount={}, required={}",
             *bet_amount, amount_raw
         )));
     } else if env.message.sent_funds.len() == 0{
-        return Err(generic_err("SHOW ME THE MONEY"));
+        return Err(StdError::generic_err("SHOW ME THE MONEY"));
     }
     if *bet_amount < state.min_credit {
-        return Err(generic_err("GTFO DIRTY SHORT STACKER"));
+        return Err(StdError::generic_err("GTFO DIRTY SHORT STACKER"));
     }
 
     if *bet_amount > state.max_credit {
-        return Err(generic_err("GTFO DIRTY DEEP STACKER"));
+        return Err(StdError::generic_err("GTFO DIRTY DEEP STACKER"));
     }
     
     //5.game state setting
     //let mut room_store = PrefixedStorage::new(ROOM_KEY, &mut deps.storage);
-    let raw_address = &env.message.sender;
+    let raw_address = deps.api.canonical_address(&env.message.sender)?;
     let mut rand_entropy: Vec<u8> = Vec::new();
 
 
@@ -354,7 +351,7 @@ pub fn try_ruler<S: Storage, A: Api, Q: Querier>(
             }
         },
         _ => {
-            return Err(generic_err(
+            return Err(StdError::generic_err(
                 "position invalid",
             ));
         }
@@ -379,13 +376,13 @@ pub fn try_ruler<S: Storage, A: Api, Q: Querier>(
         state.pot_pool += *bet_amount;
     }else if win_results == true{
         if state.pot_pool < Uint128::from(payout as u128){
-            let _ = can_winer_payout(deps, env , *bet_amount);
-            return Err(generic_err(
+            let _ = can_winer_payout(&env, *bet_amount);
+            return Err(StdError::generic_err(
                 "Lack of reserves, bet_amount refund",
             ));
         } else if state.pot_pool > Uint128::from(payout as u128){
             let potout = state.pot_pool.u128()- payout as u128;
-            let _ = can_winer_payout(deps, env, Uint128::from(payout as u128));
+            let _ = can_winer_payout(&env, Uint128::from(payout as u128));
             state.pot_pool =Uint128::from(potout);
             
         }

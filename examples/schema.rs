@@ -3,8 +3,8 @@ use std::fs::create_dir_all;
 
 use cosmwasm_schema::{export_schema, remove_schemas, schema_for};
 
-use wasmbet_contract_dice::msg::{StateResponse,RoomStateResponse, HandleMsg, InitMsg, QueryMsg};
-use wasmbet_contract_dice::state::State;
+use wasmbet_contract_timeroulette::msg::{StateResponse,RoomStateResponse, HandleMsg, InitMsg, QueryMsg};
+use wasmbet_contract_timeroulette::state::State;
 
 fn main() {
     let mut out_dir = current_dir().unwrap();

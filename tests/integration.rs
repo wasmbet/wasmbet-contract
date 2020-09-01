@@ -20,10 +20,10 @@
 use cosmwasm_std::{ HumanAddr,coins, from_binary, HandleResponse, HandleResult, InitResponse, StdError,Uint128};
 use cosmwasm_vm::testing::{handle, init, mock_env, mock_instance, query};
 
-use wasmbet_contract_dice::msg::{RoomStateResponse,StateResponse, HandleMsg, InitMsg, QueryMsg};
+use wasmbet_contract_timeroulette::msg::{RoomStateResponse,StateResponse, HandleMsg, InitMsg, QueryMsg};
 
 // This line will test the output of cargo wasm
-static WASM: &[u8] = include_bytes!("../target/wasm32-unknown-unknown/release/wasmbet_contract_dice.wasm");
+static WASM: &[u8] = include_bytes!("../target/wasm32-unknown-unknown/release/wasmbet_contract_timeroulette.wasm");
 // You can uncomment this line instead to test productionified build from rust-optimizer
 // static WASM: &[u8] = include_bytes!("../contract.wasm");
 
