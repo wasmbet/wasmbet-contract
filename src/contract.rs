@@ -167,10 +167,9 @@ fn try_pot_pool_withdraw<S: Storage, A: Api, Q: Querier>(
     } else if state.pot_pool > *amount{
         let payaout = state.pot_pool - *amount;
         state.pot_pool = payaout.unwrap();
-        deps.storage.set(CONFIG_KEY, &serde_json::to_vec(&state).unwrap());
     }
-
     let transfer = can_winer_payout(&env, *amount).unwrap();
+    deps.storage.set(CONFIG_KEY, &serde_json::to_vec(&state).unwrap());
     Ok(transfer)
 }
 
