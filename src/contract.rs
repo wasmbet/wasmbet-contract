@@ -292,7 +292,7 @@ pub fn try_ruler<S: Storage, A: Api, Q: Querier>(
             *bet_amount, amount_raw
         )));
     }
-    
+
     if *bet_amount < state.min_amount {
         return Err(StdError::generic_err("Below the minimum bet amount."));
     }
@@ -367,6 +367,7 @@ pub fn try_ruler<S: Storage, A: Api, Q: Querier>(
         deps.storage.set(CONFIG_KEY, &serde_json::to_vec(&state).unwrap());
     }else if win_results == true{
         if state.pot_pool < Uint128::from(payout as u128){
+            deps.storage.set(CONFIG_KEY, &serde_json::to_vec(&state).unwrap());
             return Err(StdError::generic_err(
                 "Lack of reserves, bet_amount refund",
             ));
