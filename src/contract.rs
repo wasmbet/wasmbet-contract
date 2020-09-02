@@ -1,6 +1,6 @@
 use cosmwasm_std::{
     log, to_binary, Api, Binary, Env, Extern, HandleResponse, InitResponse, Querier, StdError,
-    StdResult, Storage, Uint128, to_vec, Coin, CosmosMsg,ReadonlyStorage, from_slice, HumanAddr, BankMsg,
+    StdResult, Storage, Uint128, to_vec, Coin, ReadonlyStorage, from_slice, HumanAddr, BankMsg,
 };
 use crate::msg::{RoomStateResponse, StateResponse, HandleMsg, InitMsg, QueryMsg};
 use crate::state::{State, Room, ROOM_KEY, CONFIG_KEY};
@@ -171,30 +171,31 @@ fn try_pot_pool_withdraw<S: Storage, A: Api, Q: Querier>(
     }
 
     let transfer = can_winer_payout(&env, *amount).unwrap();
-    let res = HandleResponse {
-        messages: vec![transfer],
-        log: vec![
-            log("action", "pot_pool_withdraw"),
-        ],
-        data: None,
-    };
-    Ok(res)
+    Ok(transfer)
 }
 
 pub fn can_winer_payout(
     env : &Env,
-    payout_amount: Uint128,
-)-> StdResult<CosmosMsg> {
+    amount: Uint128,
+)-> StdResult<HandleResponse> {
     let token_transfer = BankMsg::Send {
         from_address: env.contract.address.clone(),
         to_address: env.message.sender.clone(),
         amount: vec![Coin {
             denom: "uscrt".to_string(),
-            amount: payout_amount,
+            amount: amount,
         }],
     }
     .into();
-    Ok(token_transfer)
+    let res = HandleResponse {
+        messages: vec![token_transfer],
+        log: vec![
+            log("action", "transfer payout"),
+        ],
+        data: None,
+    };
+
+    Ok(res)
 }
 pub fn payout_amount(
     prediction_number: u64,
@@ -233,11 +234,7 @@ pub fn try_ruler<S: Storage, A: Api, Q: Querier>(
 
 
     //1. position check 
-    if &position[..] == ""{
-        return Err(StdError::generic_err(
-            "position empty",
-        ));
-    }else if &position[..] != "under" && &position[..] != "over"{
+    if &position[..] != "under" && &position[..] != "over"{
         return Err(StdError::generic_err(
             "position not under/over",
         ));
@@ -250,9 +247,7 @@ pub fn try_ruler<S: Storage, A: Api, Q: Querier>(
                 "prediction number, 2~58",
             ));
         }
-    }
-
-    if &position[..] == "under"{
+    } else if &position[..] == "under"{
         if prediction_number < 1 || prediction_number > 57 {
             return Err(StdError::generic_err(
                 "prediction number, 1~57",
@@ -270,19 +265,16 @@ pub fn try_ruler<S: Storage, A: Api, Q: Querier>(
         state.house_fee
     )?;
 
-    if &position[..] == "over"{
-        if state.pot_pool < Uint128::from(payout){
-            return Err(StdError::generic_err(format!("Lack of reserves pot={}, payout={}, bet={}",state.pot_pool, payout,*bet_amount)));
-        }
-    } else if &position[..] == "under"{
-        if state.pot_pool < Uint128::from(payout){
-            return Err(StdError::generic_err(format!("Lack of reserves pot={}, payout={}, bet={}",state.pot_pool, payout,*bet_amount)));
-        }
+    if state.pot_pool < Uint128::from(payout){
+        return Err(StdError::generic_err(format!("Lack of reserves pot={}, payout={}, bet={}",state.pot_pool, payout,*bet_amount)));
     }
-    
     
     //4. user demon/amount check - Users should also double check
     //Minimum bet / maximum bet limit
+    if env.message.sent_funds.len() == 0{
+        return Err(StdError::generic_err("There is no money in the wallet"));
+    }
+
     let mut amount_raw: Uint128 = Uint128::default();
     for coin in &env.message.sent_funds {
         if coin.denom == "uscrt" {
@@ -293,14 +285,14 @@ pub fn try_ruler<S: Storage, A: Api, Q: Querier>(
             )));
         }
     }
+
     if amount_raw != *bet_amount {
         return Err(StdError::generic_err(format!(
             "Insufficient uscrt set amount: bet_amount={}, required={}",
             *bet_amount, amount_raw
         )));
-    } else if env.message.sent_funds.len() == 0{
-        return Err(StdError::generic_err("There is no money in the wallet"));
     }
+    
     if *bet_amount < state.min_amount {
         return Err(StdError::generic_err("Below the minimum bet amount."));
     }
@@ -370,25 +362,23 @@ pub fn try_ruler<S: Storage, A: Api, Q: Querier>(
     room_store.set(raw_address.as_slice(), &raw_room); 
 
     //10. Distribution of rewards by win and lose
-    //let contract_address_raw = deps.api.human_address(&env.contract.address)?;
-    //let recipient_address_raw = deps.api.human_address(&env.message.sender)?;
     if win_results == false{
         state.pot_pool += *bet_amount;
+        deps.storage.set(CONFIG_KEY, &serde_json::to_vec(&state).unwrap());
     }else if win_results == true{
         if state.pot_pool < Uint128::from(payout as u128){
-            let _ = can_winer_payout(&env, *bet_amount);
             return Err(StdError::generic_err(
                 "Lack of reserves, bet_amount refund",
             ));
         } else if state.pot_pool > Uint128::from(payout as u128){
             let potout = state.pot_pool.u128()- payout as u128;
-            let _ = can_winer_payout(&env, Uint128::from(payout as u128));
-            state.pot_pool =Uint128::from(potout);
+            let send_result : HandleResponse = can_winer_payout(&env, Uint128::from(payout as u128)).unwrap();
+            state.pot_pool = Uint128::from(potout);
+            deps.storage.set(CONFIG_KEY, &serde_json::to_vec(&state).unwrap());
+            return Ok(send_result)
             
         }
     }
-    
-    deps.storage.set(CONFIG_KEY, &serde_json::to_vec(&state).unwrap());
     Ok(HandleResponse::default())
 }
 fn read_state<S: Storage, A: Api, Q: Querier>(
