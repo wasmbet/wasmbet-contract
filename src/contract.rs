@@ -216,8 +216,10 @@ pub fn payout_amount(
             payout = bet_amount.u128() * multiplier/10000;
         },
         _ => {
-            multiplier = (1000000 as u128- fee as u128)/prediction_number as u128*5/3;
+            //(1000000 - 1500) / 30 x 5 / 3 = 998500 / 50 = 19970
+            multiplier = (1000000 as u128- fee as u128)/(prediction_number as u128*5/3);
             let bet_amount = *bet_amount;
+            // 1000000 x 19970/10000
             payout = bet_amount.u128() * multiplier/10000;
         },
     }
