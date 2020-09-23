@@ -34,8 +34,8 @@ fn proper_initialization() {
     let fee = 15000 as u64;
     let msg = InitMsg {
          seed: seed, 
-         min_credit: Uint128::from(1000000u128), 
-         max_credit: Uint128::from(10000000u128), 
+         min_amount: Uint128::from(1000000u128), 
+         max_amount: Uint128::from(10000000u128), 
          house_fee: fee,
         };
     let env = mock_env("creator", &coins(10000000000000000, "ukrw"));
@@ -50,8 +50,8 @@ fn proper_initialization() {
     //assert_eq!(value.contract_owner, "creator" );
     //assert_eq!(value.pot_pool, 100000000000000 );
     //assert_eq!(value.seed, "Hello, world!" );
-    assert_eq!(value.min_credit, 1000000 );
-    assert_eq!(value.max_credit, 10000000 );
+    assert_eq!(value.min_amount, 1000000 );
+    assert_eq!(value.max_amount, 10000000 );
     //assert_eq!(value.house_fee, 1 );
     
     let mut env = mock_env("creator", &coins(2000000, "ukrw"));
@@ -82,9 +82,9 @@ fn proper_initialization() {
     
     let addres = HumanAddr("creator".to_string());
     let addres2 = HumanAddr("creator2".to_string());
-    let res = query(&mut deps, QueryMsg::GetMyRoomState{address:addres}).unwrap();
+    let res = query(&mut deps, QueryMsg::Getmystate{address:addres}).unwrap();
     let value: RoomStateResponse = from_binary(&res).unwrap();
-    let res2 = query(&mut deps, QueryMsg::GetMyRoomState{address:addres2}).unwrap();
+    let res2 = query(&mut deps, QueryMsg::Getmystate{address:addres2}).unwrap();
     let value2: RoomStateResponse = from_binary(&res2).unwrap();
     let res3 = query(&mut deps, QueryMsg::Getstate{}).unwrap();
     let value3: StateResponse = from_binary(&res3).unwrap();

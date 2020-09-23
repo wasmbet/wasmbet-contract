@@ -91,7 +91,7 @@ fn try_pot_pool_deposit<S: Storage, A: Api, Q: Querier>(
     let mut amount_raw: Uint128 = Uint128::default();
 
     for coin in &env.message.sent_funds {
-        if coin.denom == "uscrt" {
+        if coin.denom == "ukrw" {
             amount_raw = coin.amount
         }
     }
@@ -119,7 +119,7 @@ fn try_change_maxamount<S: Storage, A: Api, Q: Querier>(
     if api.canonical_address(&env.message.sender)? != state.contract_owner {
         return Err(StdError::generic_err(format!("not owner address")));
     }
-    state.min_amount = *max_amount;
+    state.max_amount = *max_amount;
     deps.storage.set(CONFIG_KEY, &serde_json::to_vec(&state).unwrap());
     Ok(HandleResponse::default())
 }
@@ -181,7 +181,7 @@ pub fn can_winer_payout(
         from_address: env.contract.address.clone(),
         to_address: env.message.sender.clone(),
         amount: vec![Coin {
-            denom: "uscrt".to_string(),
+            denom: "ukrw".to_string(),
             amount: amount,
         }],
     }
@@ -205,7 +205,7 @@ pub fn payout_amount(
     let multiplier : u128;
     let payout;
     //98.5/99-Prediction=multiplier
-    // uscrt =1000000 = 1krw 
+    // ukrw =1000000 = 1krw 
     //98.5/Prediction=multiplier
 
     match &position[..] {
@@ -278,18 +278,18 @@ pub fn try_ruler<S: Storage, A: Api, Q: Querier>(
 
     let mut amount_raw: Uint128 = Uint128::default();
     for coin in &env.message.sent_funds {
-        if coin.denom == "uscrt" {
+        if coin.denom == "ukrw" {
             amount_raw = coin.amount
         } else{
             return Err(StdError::generic_err(format!(
-                "Insufficient uscrt denom",
+                "Insufficient ukrw denom",
             )));
         }
     }
 
     if amount_raw != *bet_amount {
         return Err(StdError::generic_err(format!(
-            "Insufficient uscrt set amount: bet_amount={}, required={}",
+            "Insufficient ukrw set amount: bet_amount={}, required={}",
             *bet_amount, amount_raw
         )));
     }
