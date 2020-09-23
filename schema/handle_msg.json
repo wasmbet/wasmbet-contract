@@ -16,16 +16,16 @@
     {
       "type": "object",
       "required": [
-        "try_change_maxcredit"
+        "try_change_maxamount"
       ],
       "properties": {
-        "try_change_maxcredit": {
+        "try_change_maxamount": {
           "type": "object",
           "required": [
-            "max_credit"
+            "max_amount"
           ],
           "properties": {
-            "max_credit": {
+            "max_amount": {
               "$ref": "#/definitions/Uint128"
             }
           }
@@ -35,16 +35,16 @@
     {
       "type": "object",
       "required": [
-        "try_change_mincredit"
+        "try_change_minamount"
       ],
       "properties": {
-        "try_change_mincredit": {
+        "try_change_minamount": {
           "type": "object",
           "required": [
-            "min_credit"
+            "min_amount"
           ],
           "properties": {
-            "min_credit": {
+            "min_amount": {
               "$ref": "#/definitions/Uint128"
             }
           }

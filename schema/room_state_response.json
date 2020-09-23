@@ -8,8 +8,8 @@
     "lucky_number",
     "position",
     "prediction_number",
-    "results",
-    "start_time"
+    "start_time",
+    "win_results"
   ],
   "properties": {
     "bet_amount": {
@@ -38,13 +38,13 @@
       "format": "uint64",
       "minimum": 0.0
     },
-    "results": {
-      "type": "boolean"
-    },
     "start_time": {
       "type": "integer",
       "format": "uint64",
       "minimum": 0.0
+    },
+    "win_results": {
+      "type": "boolean"
     }
   }
 }

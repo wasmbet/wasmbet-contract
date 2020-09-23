@@ -5,8 +5,8 @@
   "required": [
     "contract_owner",
     "house_fee",
-    "max_credit",
-    "min_credit",
+    "max_amount",
+    "min_amount",
     "pot_pool",
     "seed"
   ],
@@ -19,10 +19,10 @@
       "format": "uint64",
       "minimum": 0.0
     },
-    "max_credit": {
+    "max_amount": {
       "$ref": "#/definitions/Uint128"
     },
-    "min_credit": {
+    "min_amount": {
       "$ref": "#/definitions/Uint128"
     },
     "pot_pool": {

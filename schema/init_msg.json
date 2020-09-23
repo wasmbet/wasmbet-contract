@@ -4,8 +4,8 @@
   "type": "object",
   "required": [
     "house_fee",
-    "max_credit",
-    "min_credit",
+    "max_amount",
+    "min_amount",
     "seed"
   ],
   "properties": {
@@ -14,10 +14,10 @@
       "format": "uint64",
       "minimum": 0.0
     },
-    "max_credit": {
+    "max_amount": {
       "$ref": "#/definitions/Uint128"
     },
-    "min_credit": {
+    "min_amount": {
       "$ref": "#/definitions/Uint128"
     },
     "seed": {
