@@ -2,7 +2,7 @@
 
 
 ```sh
-RUSTFLAGS='-C link-arg=-s' cargo build --release --target wasm32-unknown-unknown --lock
+RUSTFLAGS='-C link-arg=-s' cargo build --release --target wasm32-unknown-unknown
 terracli tx wasm store target/wasm32-unknown-unknown/release/wasmbet_contract_dice.wasm --from validator --chain-id tequila-0002 --gas 2000000 --node tcp://127.0.0.1:16657
 terracli q tx <txhash> --trust-node --node tcp://127.0.0.1:16657 | grep code_id
 terracli  tx wasm instantiate 40 '{"seed":"<rand seed>","min_credit":"<min>","max_credit":"<max>","house_fee":<fee>}' --from validator --node tcp://127.0.0.1:16657 --chain-id tequila-0002
