@@ -1,32 +1,26 @@
 use schemars::JsonSchema;
 use cosmwasm_std::{HumanAddr,Uint128};
 use serde::{Deserialize, Serialize};
+use crate::state::{Casino, Stakes};
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct InitMsg {
-    pub seed : String,
-    pub min_credit: Uint128,
-    pub max_credit: Uint128,
-    pub house_fee: u64,
+pub enum InitMsg {
+    CreateCasino { 
+        name: String,
+        description: String,
+        min_bet_amount: Uint128,
+        max_bet_rate: u64,
+        house_fee: u64,
+        founder_commission_rate: u64,
+        seed : String,
+    },
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum HandleMsg {
-    TryPotPoolDeposit{
-    },
-    TryChangeMaxcredit{
-        max_credit: Uint128,
-    },
-    TryChangeMincredit{
-        min_credit: Uint128,
-    },
-    TryChaingeFee{
-        fee: u64,
-    },
-    TryPotPoolWithdraw{
-        amount: Uint128
-    },
+    TryCapitalDeposit{},
+    TryCapitalWithdraw{},
     Ruler {
         phrase: String,
         prediction_number: u64,
@@ -38,17 +32,10 @@ pub enum HandleMsg {
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
 #[serde(rename_all = "snake_case")]
 pub enum QueryMsg {
-    Getstate {},
+    GetCasinoStakeInfo {},
+    GetCasinoInfo {},
+    GetStakeInfo {},
     Getmystate {address:HumanAddr},
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
-pub struct StateResponse {
-    pub contract_owner: HumanAddr,
-    pub pot_pool: u64,
-    pub min_credit: u64,
-    pub max_credit: u64,
-    pub house_fee: u64,
 }
 
 #[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
@@ -59,5 +46,22 @@ pub struct RoomStateResponse {
     pub lucky_number: u64,
     pub position: String,
     pub results: bool,
+    pub payout: u64,
     pub bet_amount: u64,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct CasinoResponse {
+    pub casino: Casino,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct StakeResponse {
+    pub stake: Stakes,
+}
+
+#[derive(Serialize, Deserialize, Clone, Debug, PartialEq, JsonSchema)]
+pub struct CasinoStakeResponse {
+    pub casino: Casino,
+    pub stake: Stakes,
 }
