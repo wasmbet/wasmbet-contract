@@ -1,6 +1,6 @@
 use cosmwasm_std::{
     log, to_binary, Api, Binary, Env, Extern, HandleResponse, InitResponse, Querier, StdError,
-    StdResult, Storage, Uint128, to_vec, Coin, ReadonlyStorage, from_slice, HumanAddr, BankMsg,
+    StdResult, Storage, Uint128, to_vec, Coin, CosmosMsg,ReadonlyStorage, from_slice, HumanAddr, BankMsg,
 };
 use crate::msg::{RoomStateResponse, CasinoResponse, StakeResponse, CasinoStakeResponse, HandleMsg, InitMsg, QueryMsg};
 use crate::state::{Casino, Results, Stakes, StakeInfo, Room, ROOM_KEY, CASINO_KEY, STAKE_KEY, RESULT_KEY};
@@ -199,26 +199,18 @@ fn try_capital_withdraw<S: Storage, A: Api, Q: Querier>(
 
 pub fn send_coin(
     env : &Env,
-    amount: Uint128,
-)-> StdResult<HandleResponse> {
+    payout_amount: Uint128,
+)-> StdResult<CosmosMsg> {
     let token_transfer = BankMsg::Send {
         from_address: env.contract.address.clone(),
         to_address: env.message.sender.clone(),
         amount: vec![Coin {
             denom: "ukrw".to_string(),
-            amount: amount,
+            amount: payout_amount,
         }],
     }
     .into();
-    let res = HandleResponse {
-        messages: vec![token_transfer],
-        log: vec![
-            log("action", "transfer payout"),
-        ],
-        data: None,
-    };
-
-    Ok(res)
+    Ok(token_transfer)
 }
 
 pub fn can_winer_payout(
@@ -229,7 +221,7 @@ pub fn can_winer_payout(
         from_address: env.contract.address.clone(),
         to_address: env.message.sender.clone(),
         amount: vec![Coin {
-            denom: "uscrt".to_string(),
+            denom: "ukrw".to_string(),
             amount: amount,
         }],
     }
@@ -266,7 +258,6 @@ pub fn payout_amount(
         _ => {
             multiplier = (1000000 as u128- fee as u128)/(prediction_number as u128*5/3);
             let bet_amount = *bet_amount;
-            // 1000000 x 19970/10000
             payout = bet_amount.u128() * multiplier/10000;
         },
     }
@@ -281,7 +272,11 @@ pub fn try_ruler<S: Storage, A: Api, Q: Querier>(
     bet_amount: &Uint128,
 ) -> StdResult<HandleResponse> {
     //1. position check 
-    if &position[..] != "under" && &position[..] != "over"{
+    if &position[..] == ""{
+        return Err(StdError::generic_err(
+            "position empty",
+        ));
+    }else if &position[..] != "under" && &position[..] != "over"{
         return Err(StdError::generic_err(
             "position not under/over",
         ));
@@ -294,7 +289,9 @@ pub fn try_ruler<S: Storage, A: Api, Q: Querier>(
                 "prediction number, 2~58",
             ));
         }
-    } else if &position[..] == "under"{
+    }
+
+    if &position[..] == "under"{
         if prediction_number < 1 || prediction_number > 57 {
             return Err(StdError::generic_err(
                 "prediction number, 1~57",
@@ -319,10 +316,6 @@ pub fn try_ruler<S: Storage, A: Api, Q: Querier>(
     
     //4. user demon/amount check - Users should also double check
     //Minimum bet / maximum bet limit
-    if env.message.sent_funds.len() == 0{
-        return Err(StdError::generic_err("There is no money in the wallet"));
-    }
-
     let mut amount_raw: Uint128 = Uint128::default();
     for coin in &env.message.sent_funds {
         if coin.denom == "ukrw" {
@@ -333,12 +326,13 @@ pub fn try_ruler<S: Storage, A: Api, Q: Querier>(
             )));
         }
     }
-
     if amount_raw != *bet_amount {
         return Err(StdError::generic_err(format!(
-            "Insufficient ukrw set amount: bet_amount={}, required={}",
+            "Insufficient ukrw deposit: bet_amount={}, required={}",
             *bet_amount, amount_raw
         )));
+    } else if env.message.sent_funds.len() == 0{
+        return Err(StdError::generic_err("SHOW ME THE MONEY"));
     }
     
     //5.game state setting
@@ -471,4 +465,5 @@ fn read_room_state<S: Storage, A: Api>(
         payout: payout as u64,
         bet_amount: amount as u64,
     })
+
 }
