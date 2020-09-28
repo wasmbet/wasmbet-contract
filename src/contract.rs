@@ -2,8 +2,8 @@ use cosmwasm_std::{
     log, to_binary, Api, Binary, Env, Extern, HandleResponse, InitResponse, Querier, StdError,
     StdResult, Storage, Uint128, to_vec, Coin, ReadonlyStorage, from_slice, HumanAddr, BankMsg,
 };
-use crate::msg::{RoomStateResponse, StateResponse, HandleMsg, InitMsg, QueryMsg};
-use crate::state::{State, Room, ROOM_KEY, CONFIG_KEY};
+use crate::msg::{RoomStateResponse, CasinoResponse, StakeResponse, CasinoStakeResponse, HandleMsg, InitMsg, QueryMsg};
+use crate::state::{Casino, Results, Stakes, StakeInfo, Room, ROOM_KEY, CASINO_KEY, STAKE_KEY, RESULT_KEY};
 use crate::rand::Prng;
 use cosmwasm_storage::{PrefixedStorage, ReadonlyPrefixedStorage};
 use sha2::{Digest, Sha256};
@@ -14,16 +14,38 @@ pub fn init<S: Storage, A: Api, Q: Querier>(
     env: Env,
     msg: InitMsg,
 ) -> StdResult<InitResponse> {
-    let state = State {
-        contract_owner: deps.api.canonical_address(&env.message.sender)?,
-        pot_pool: Uint128::from(0u128),
-        seed: msg.seed.as_bytes().to_vec(),
-        min_amount: msg.min_amount,
-        max_amount: msg.max_amount,
-        house_fee: msg.house_fee,
-    };
-    deps.storage.set(CONFIG_KEY, &serde_json::to_vec(&state).unwrap());
-    Ok(InitResponse::default())
+
+    match msg {
+        InitMsg::CreateCasino { 
+            name,
+            description,
+            min_bet_amount,
+            max_bet_rate, 
+            house_fee, 
+            founder_commission_rate,
+            seed
+        } => {
+
+            let casino = Casino {
+                founder: env.message.sender,
+                name,
+                description,
+                min_bet_amount,
+                max_bet_rate,
+                house_fee,
+                founder_commission_rate,
+                capital: Uint128::from(0u128),
+                seed: seed.as_bytes().to_vec(),
+                bet_cumulative_amount: Uint128::from(0u128),
+            };
+
+            deps.storage.set(CASINO_KEY, &serde_json::to_vec(&casino).unwrap());
+            deps.storage.set(STAKE_KEY, &serde_json::to_vec(&Stakes::new()).unwrap());
+            deps.storage.set(RESULT_KEY, &serde_json::to_vec(&Results::new()).unwrap());
+
+            Ok(InitResponse::default())
+        }
+    }
 }
 pub fn handle<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
@@ -31,7 +53,7 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
     msg: HandleMsg,
 ) -> StdResult<HandleResponse> {
     match msg {
-        HandleMsg::Ruler {phrase, prediction_number, position,bet_amount} => try_ruler(
+        HandleMsg::Ruler {phrase, prediction_number, position, bet_amount} => try_ruler(
             deps, 
             env,
             phrase,
@@ -39,29 +61,13 @@ pub fn handle<S: Storage, A: Api, Q: Querier>(
             position,
             &bet_amount,
         ),
-        HandleMsg::TryPotPoolDeposit{} => try_pot_pool_deposit(
+        HandleMsg::TryCapitalDeposit{} => try_capital_deposit(
             deps, 
             env,
         ),
-        HandleMsg::TryChangeMaxamount{max_amount} => try_change_maxamount(
+        HandleMsg::TryCapitalWithdraw{} => try_capital_withdraw(
             deps, 
-            env, 
-            &max_amount,
-        ),
-        HandleMsg::TryChangeMinamount{min_amount} => try_change_minamount(
-            deps, 
-            env, 
-            &min_amount,
-        ),
-        HandleMsg::TryChaingeFee{fee} => try_change_fee(
-            deps,
             env,
-            fee,
-        ),
-        HandleMsg::TryPotPoolWithdraw{amount} => try_pot_pool_withdraw(
-            deps,
-            env,
-            &amount,
         ),
     }
 }
@@ -70,13 +76,23 @@ pub fn query<S: Storage, A: Api, Q: Querier>(
     msg: QueryMsg,
 ) -> StdResult<Binary> {
     match msg {
-        QueryMsg::Getstate {} => to_binary(
-            &read_state(
+        QueryMsg::GetCasinoStakeInfo {} => to_binary(
+            &read_casino_stake_info(
+                deps
+            )?
+        ),
+        QueryMsg::GetStakeInfo {} => to_binary(
+            &read_stake_info(
+                deps
+            )?
+        ),
+        QueryMsg::GetCasinoInfo {} => to_binary(
+            &read_casino_info(
                 deps
             )?
         ),
         QueryMsg::Getmystate{address}=> to_binary(
-            &read_root_state(
+            &read_room_state(
                 &address,
                 &deps.storage,
                 &deps.api
@@ -84,7 +100,8 @@ pub fn query<S: Storage, A: Api, Q: Querier>(
         )
     }
 }
-fn try_pot_pool_deposit<S: Storage, A: Api, Q: Querier>(
+
+fn try_capital_deposit<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
 ) -> StdResult<HandleResponse> {
@@ -100,80 +117,87 @@ fn try_pot_pool_deposit<S: Storage, A: Api, Q: Querier>(
         return Err(StdError::generic_err(format!("Lol send some funds dude")));
     }
 
-    let api = &deps.api;
-    let mut state: State = serde_json::from_slice(&deps.storage.get(CONFIG_KEY).unwrap()).unwrap();
-    if api.canonical_address(&env.message.sender)? != state.contract_owner {
-            return Err(StdError::generic_err(format!("not owner address")));
+    let mut casino: Casino = serde_json::from_slice(&deps.storage.get(CASINO_KEY).unwrap()).unwrap();
+    let stake: Stakes = serde_json::from_slice(&deps.storage.get(STAKE_KEY).unwrap()).unwrap();
+
+    let mut new_stakes = Stakes::new();
+    let new_capital = casino.capital + amount_raw;
+    
+    for stake_info in stake.iter() {
+        if env.message.sender == stake_info.address {
+            return Err(StdError::generic_err(format!("already deposit")));
+        }
+        let deposit = casino.capital.u128() * stake_info.ownership_percentage.u128() / 100000000;
+        let new_ownership_percentage = Uint128(100000000 * deposit / new_capital.u128());
+        let mut new_stake_info:StakeInfo = stake_info.clone();
+        new_stake_info.ownership_percentage = new_ownership_percentage;
+        new_stakes.push(new_stake_info.clone());
     }
-    state.pot_pool += amount_raw;
-    deps.storage.set(CONFIG_KEY, &serde_json::to_vec(&state).unwrap());
-    Ok(HandleResponse::default())
-}
-fn try_change_maxamount<S: Storage, A: Api, Q: Querier>(
-    deps: &mut Extern<S, A, Q>,
-    env: Env,
-    max_amount: &Uint128,
-) -> StdResult<HandleResponse> {
-    let api = &deps.api;
-    let mut state: State = serde_json::from_slice(&deps.storage.get(CONFIG_KEY).unwrap()).unwrap();
-    if api.canonical_address(&env.message.sender)? != state.contract_owner {
-        return Err(StdError::generic_err(format!("not owner address")));
-    }
-    state.max_amount = *max_amount;
-    deps.storage.set(CONFIG_KEY, &serde_json::to_vec(&state).unwrap());
-    Ok(HandleResponse::default())
-}
-fn try_change_minamount<S: Storage, A: Api, Q: Querier>(
-    deps: &mut Extern<S, A, Q>,
-    env: Env,
-    min_amount: &Uint128,
-) -> StdResult<HandleResponse> {
-    let api = &deps.api;
-    let mut state: State = serde_json::from_slice(&deps.storage.get(CONFIG_KEY).unwrap()).unwrap();
-    if api.canonical_address(&env.message.sender)? != state.contract_owner {
-        return Err(StdError::generic_err(format!("not owner address")));
-    }
-    state.min_amount = *min_amount;
-    deps.storage.set(CONFIG_KEY, &serde_json::to_vec(&state).unwrap());
-    Ok(HandleResponse::default())
-}
-fn try_change_fee<S: Storage, A: Api, Q: Querier>(
-    deps: &mut Extern<S, A, Q>,
-    env: Env,
-    fee: u64,
-) -> StdResult<HandleResponse> {
-    let api = &deps.api;
-    let mut state: State = serde_json::from_slice(&deps.storage.get(CONFIG_KEY).unwrap()).unwrap();
-    if api.canonical_address(&env.message.sender)? != state.contract_owner {
-        return Err(StdError::generic_err(format!("not owner address")));
-    }
-    state.house_fee = fee;
-    deps.storage.set(CONFIG_KEY, &serde_json::to_vec(&state).unwrap());
+
+    let my_stake_info: StakeInfo = StakeInfo{
+        address: env.message.sender,
+        begin_amount: amount_raw,
+        ownership_percentage: Uint128(100000000 * amount_raw.u128() / new_capital.u128()),
+    };
+
+    new_stakes.push(my_stake_info.clone());
+
+    casino.capital = new_capital;
+
+    deps.storage.set(CASINO_KEY, &serde_json::to_vec(&casino).unwrap());
+    deps.storage.set(STAKE_KEY, &serde_json::to_vec(&new_stakes).unwrap());
     Ok(HandleResponse::default())
 }
 
-fn try_pot_pool_withdraw<S: Storage, A: Api, Q: Querier>(
+fn try_capital_withdraw<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
     env: Env,
-    amount: &Uint128,
 ) -> StdResult<HandleResponse> {
-    let api = &deps.api;
-    let mut state: State = serde_json::from_slice(&deps.storage.get(CONFIG_KEY).unwrap()).unwrap();
-    if api.canonical_address(&env.message.sender)? != state.contract_owner {
-        return Err(StdError::generic_err(format!("not owner address")));
+    let mut casino: Casino = serde_json::from_slice(&deps.storage.get(CASINO_KEY).unwrap()).unwrap();
+    let stake: Stakes = serde_json::from_slice(&deps.storage.get(STAKE_KEY).unwrap()).unwrap();
+
+    let mut amount_raw: u128 = 0;
+
+    for stake_info in stake.iter() {
+        if env.message.sender == stake_info.address {
+            amount_raw = stake_info.ownership_percentage.u128()*casino.capital.u128()/100000000;
+        }
     }
-    if state.pot_pool < *amount{
-        return Err(StdError::generic_err(format!("insufficient pot pool")));
-    } else if state.pot_pool > *amount{
-        let payaout = state.pot_pool - *amount;
-        state.pot_pool = payaout.unwrap();
+
+    if amount_raw == 0 {
+        return Err(StdError::generic_err(format!("not found deposit!")));
     }
-    let transfer = can_winer_payout(&env, *amount).unwrap();
-    deps.storage.set(CONFIG_KEY, &serde_json::to_vec(&state).unwrap());
-    Ok(transfer)
+
+    let mut new_stakes = Stakes::new();
+    let new_capital = casino.capital.u128() - amount_raw;
+
+    for stake_info in stake.iter() {
+        if env.message.sender != stake_info.address {
+            let deposit = casino.capital.u128() * stake_info.ownership_percentage.u128() / 100000000;
+            let new_ownership_percentage = Uint128(100000000 * deposit / new_capital);
+            let mut new_stake_info:StakeInfo = stake_info.clone();
+            new_stake_info.ownership_percentage = new_ownership_percentage;
+            new_stakes.push(new_stake_info.clone());
+        }
+    }
+
+    casino.capital = Uint128(new_capital);
+
+    deps.storage.set(CASINO_KEY, &serde_json::to_vec(&casino).unwrap());
+    deps.storage.set(STAKE_KEY, &serde_json::to_vec(&new_stakes).unwrap());
+
+    let transfer = send_coin(&env, Uint128(amount_raw)).unwrap();
+    let res = HandleResponse {
+        messages: vec![transfer],
+        log: vec![
+            log("action", "capital_withdraw"),
+        ],
+        data: None,
+    };
+    Ok(res)
 }
 
-pub fn can_winer_payout(
+pub fn send_coin(
     env : &Env,
     amount: Uint128,
 )-> StdResult<HandleResponse> {
@@ -196,6 +220,31 @@ pub fn can_winer_payout(
 
     Ok(res)
 }
+
+pub fn can_winer_payout(
+    env : &Env,
+    amount: Uint128,
+)-> StdResult<HandleResponse> {
+    let token_transfer = BankMsg::Send {
+        from_address: env.contract.address.clone(),
+        to_address: env.message.sender.clone(),
+        amount: vec![Coin {
+            denom: "uscrt".to_string(),
+            amount: amount,
+        }],
+    }
+    .into();
+    let res = HandleResponse {
+        messages: vec![token_transfer],
+        log: vec![
+            log("action", "transfer payout"),
+        ],
+        data: None,
+    };
+
+    Ok(res)
+}
+
 pub fn payout_amount(
     prediction_number: u64,
     position: String,
@@ -215,7 +264,6 @@ pub fn payout_amount(
             payout = bet_amount.u128() * multiplier/10000;
         },
         _ => {
-            //(1000000 - 1500) / 30 x 5 / 3 = 998500 / 50 = 19970
             multiplier = (1000000 as u128- fee as u128)/(prediction_number as u128*5/3);
             let bet_amount = *bet_amount;
             // 1000000 x 19970/10000
@@ -232,8 +280,6 @@ pub fn try_ruler<S: Storage, A: Api, Q: Querier>(
     position: String,
     bet_amount: &Uint128,
 ) -> StdResult<HandleResponse> {
-
-
     //1. position check 
     if &position[..] != "under" && &position[..] != "over"{
         return Err(StdError::generic_err(
@@ -255,7 +301,8 @@ pub fn try_ruler<S: Storage, A: Api, Q: Querier>(
             ));
         }
     }
-    let mut state: State = serde_json::from_slice(&deps.storage.get(CONFIG_KEY).unwrap()).unwrap();
+
+    let mut casino: Casino = serde_json::from_slice(&deps.storage.get(CASINO_KEY).unwrap()).unwrap();
     
     //3.prediction check is pool amount check
     
@@ -263,11 +310,11 @@ pub fn try_ruler<S: Storage, A: Api, Q: Querier>(
         prediction_number,
         position.clone(), 
         bet_amount,
-        state.house_fee
+        casino.house_fee
     )?;
 
-    if state.pot_pool < Uint128::from(payout){
-        return Err(StdError::generic_err(format!("Lack of reserves pot={}, payout={}, bet={}",state.pot_pool, payout,*bet_amount)));
+    if casino.capital.u128() * casino.max_bet_rate as u128 / 1000000 < payout {
+        return Err(StdError::generic_err(format!("Lack of reserves capital={}, payout={}, max-bet-rate={}",casino.capital, payout, casino.max_bet_rate)));
     }
     
     //4. user demon/amount check - Users should also double check
@@ -293,14 +340,6 @@ pub fn try_ruler<S: Storage, A: Api, Q: Querier>(
             *bet_amount, amount_raw
         )));
     }
-
-    if *bet_amount < state.min_amount {
-        return Err(StdError::generic_err("Below the minimum bet amount."));
-    }
-
-    if *bet_amount > state.max_amount {
-        return Err(StdError::generic_err("The maximum bet amount is exceeded."));
-    }
     
     //5.game state setting
     //let mut room_store = PrefixedStorage::new(ROOM_KEY, &mut deps.storage);
@@ -319,7 +358,7 @@ pub fn try_ruler<S: Storage, A: Api, Q: Querier>(
 
 
     //7. lucky_number apply
-    let mut rng: Prng = Prng::new(&state.seed, &rand_entropy);
+    let mut rng: Prng = Prng::new(&casino.seed, &rand_entropy);
 
     let lucky_number_u32 = rng.select_one_of(59);
     let lucky_number = lucky_number_u32 as u64;
@@ -356,50 +395,62 @@ pub fn try_ruler<S: Storage, A: Api, Q: Querier>(
         prediction_number: prediction_number,
         lucky_number: lucky_number,
         position: position,
-        win_results: win_results,
+        results: win_results,
+        payout: Uint128(payout),
         bet_amount: *bet_amount,
     })?;
     let mut room_store = PrefixedStorage::new(ROOM_KEY, &mut deps.storage);
     room_store.set(raw_address.as_slice(), &raw_room); 
 
     //10. Distribution of rewards by win and lose
-    if win_results == false{
-        state.pot_pool += *bet_amount;
-        deps.storage.set(CONFIG_KEY, &serde_json::to_vec(&state).unwrap());
-    }else if win_results == true{
-        if state.pot_pool < Uint128::from(payout as u128){
-            deps.storage.set(CONFIG_KEY, &serde_json::to_vec(&state).unwrap());
-            return Err(StdError::generic_err(
-                "Lack of reserves, bet_amount refund",
-            ));
-        } else if state.pot_pool > Uint128::from(payout as u128){
-            let potout = state.pot_pool.u128()- payout as u128;
-            let send_result : HandleResponse = can_winer_payout(&env, Uint128::from(payout as u128)).unwrap();
-            state.pot_pool = Uint128::from(potout);
-            deps.storage.set(CONFIG_KEY, &serde_json::to_vec(&state).unwrap());
-            return Ok(send_result)
-            
-        }
+    //let contract_address_raw = deps.api.human_address(&env.contract.address)?;
+    //let recipient_address_raw = deps.api.human_address(&env.message.sender)?;
+    casino.bet_cumulative_amount += *bet_amount;
+    if win_results == false {
+        casino.capital += amount_raw;
+        deps.storage.set(CASINO_KEY, &serde_json::to_vec(&casino).unwrap());
+        return Ok(HandleResponse::default());
+    } else {
+        casino.capital = Uint128(casino.capital.u128() + amount_raw.u128() - payout);
+        let _ = can_winer_payout(&env, Uint128::from(payout as u128));
+        let send_result : HandleResponse = can_winer_payout(&env, Uint128::from(payout as u128)).unwrap();
+        
+        deps.storage.set(CASINO_KEY, &serde_json::to_vec(&casino).unwrap());
+        return Ok(send_result);
     }
-    Ok(HandleResponse::default())
 }
-fn read_state<S: Storage, A: Api, Q: Querier>(
+
+fn read_casino_stake_info<S: Storage, A: Api, Q: Querier>(
     deps: &Extern<S, A, Q>
-) -> StdResult<StateResponse> {
-    let state: State = serde_json::from_slice(&deps.storage.get(CONFIG_KEY).unwrap()).unwrap();
-    let owner = deps.api.human_address(&state.contract_owner)?;
-    let pot = state.pot_pool.u128();
-    let min_amount = state.min_amount.u128();
-    let max_amount = state.max_amount.u128();
-    Ok(StateResponse{
-        contract_owner: owner,
-        pot_pool: pot as u64,
-        min_amount: min_amount as u64,
-        max_amount: max_amount as u64,
-        house_fee: state.house_fee,
+) -> StdResult<CasinoStakeResponse> {
+    let casino: Casino = serde_json::from_slice(&deps.storage.get(CASINO_KEY).unwrap()).unwrap();
+    let stake: Stakes = serde_json::from_slice(&deps.storage.get(STAKE_KEY).unwrap()).unwrap();
+    Ok(CasinoStakeResponse{
+        casino,
+        stake,
     })
 }
-fn read_root_state<S: Storage, A: Api>(
+
+
+fn read_stake_info<S: Storage, A: Api, Q: Querier>(
+    deps: &Extern<S, A, Q>
+) -> StdResult<StakeResponse> {
+    let stake: Stakes = serde_json::from_slice(&deps.storage.get(STAKE_KEY).unwrap()).unwrap();
+    Ok(StakeResponse{
+        stake,
+    })
+}
+
+fn read_casino_info<S: Storage, A: Api, Q: Querier>(
+    deps: &Extern<S, A, Q>
+) -> StdResult<CasinoResponse> {
+    let casino: Casino = serde_json::from_slice(&deps.storage.get(CASINO_KEY).unwrap()).unwrap();
+    Ok(CasinoResponse{
+        casino,
+    })
+}
+
+fn read_room_state<S: Storage, A: Api>(
     address: &HumanAddr,
     store: &S,
     api: &A,
@@ -408,6 +459,7 @@ fn read_root_state<S: Storage, A: Api>(
     let room_store = ReadonlyPrefixedStorage::new(ROOM_KEY, store);
     let room_state = room_store.get(owner_address.as_slice()).unwrap();
     let room : Room = from_slice(&room_state).unwrap();
+    let payout = room.payout.u128();
     let amount = room.bet_amount.u128();
     Ok(RoomStateResponse{
         start_time: room.start_time,
@@ -415,7 +467,8 @@ fn read_root_state<S: Storage, A: Api>(
         prediction_number: room.prediction_number,
         lucky_number: room.lucky_number,
         position: room.position,
-        win_results: room.win_results,
+        results: room.results,
+        payout: payout as u64,
         bet_amount: amount as u64,
     })
 }
