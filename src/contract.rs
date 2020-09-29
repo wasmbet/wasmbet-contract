@@ -261,7 +261,8 @@ pub fn payout_amount(
             payout = bet_amount.u128() * multiplier/10000;
         },
     }
-    Ok(payout)
+    let payoutandfee = payout -10;
+    Ok(payoutandfee)
 }
 pub fn try_ruler<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
