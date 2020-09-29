@@ -1,7 +1,5 @@
 # simple explanation
 
-Currently, Kpler doesn't support testnets, so it's not smooth, but the rule is this.
-
 User
 
 1. It is possible to create your own casino
