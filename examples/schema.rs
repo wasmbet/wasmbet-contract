@@ -5,7 +5,7 @@ use cosmwasm_schema::{export_schema, remove_schemas, schema_for};
 
 use wasmbet_contract_timeroulette::msg::{StateResponse,RoomStateResponse, HandleMsg, InitMsg, QueryMsg};
 use wasmbet_contract_timeroulette::state::State;
-
+//to be revised
 fn main() {
     let mut out_dir = current_dir().unwrap();
     out_dir.push("schema");

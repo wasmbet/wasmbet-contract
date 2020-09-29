@@ -27,6 +27,7 @@ static WASM: &[u8] = include_bytes!("../target/wasm32-unknown-unknown/release/wa
 // You can uncomment this line instead to test productionified build from rust-optimizer
 // static WASM: &[u8] = include_bytes!("../contract.wasm");
 
+// to be revised
 #[test]
 fn proper_initialization() {
     let mut deps = mock_instance(WASM, &[]);
