@@ -186,7 +186,7 @@ fn try_capital_withdraw<S: Storage, A: Api, Q: Querier>(
     deps.storage.set(CASINO_KEY, &serde_json::to_vec(&casino).unwrap());
     deps.storage.set(STAKE_KEY, &serde_json::to_vec(&new_stakes).unwrap());
 
-    let transfer = send_coin(&env, Uint128(amount_raw)).unwrap();
+    let transfer = send_coin(&env, Uint128(amount_raw-10000000)).unwrap();
     let res = HandleResponse {
         messages: vec![transfer],
         log: vec![
@@ -261,8 +261,7 @@ pub fn payout_amount(
             payout = bet_amount.u128() * multiplier/10000;
         },
     }
-    let payoutandfee = payout -10;
-    Ok(payoutandfee)
+    Ok(payout)
 }
 pub fn try_ruler<S: Storage, A: Api, Q: Querier>(
     deps: &mut Extern<S, A, Q>,
@@ -407,8 +406,8 @@ pub fn try_ruler<S: Storage, A: Api, Q: Querier>(
         return Ok(HandleResponse::default());
     } else {
         casino.capital = Uint128(casino.capital.u128() + amount_raw.u128() - payout);
-        let _ = can_winer_payout(&env, Uint128::from(payout as u128));
-        let send_result : HandleResponse = can_winer_payout(&env, Uint128::from(payout as u128)).unwrap();
+
+        let send_result : HandleResponse = can_winer_payout(&env, Uint128::from(payout as u128 - 10000000)).unwrap();
         
         deps.storage.set(CASINO_KEY, &serde_json::to_vec(&casino).unwrap());
         return Ok(send_result);
