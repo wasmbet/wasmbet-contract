@@ -41,8 +41,9 @@ Necessary for motivation to create a casino)
 
 ```sh
 RUSTFLAGS='-C link-arg=-s' cargo build --release --target wasm32-unknown-unknown
+
 secretcli tx compute store ./target/wasm32-unknown-unknown/release/wasmbet_contract_timeroulette.wasm --from test --gas 2000000 -y --chain-id test
-secretcli tx compute store wasmbet_contract_timeroulette.wasm --from test --gas 2000000 -y --chain-id test
+
 secretcli query compute list-code
 
 secretcli tx compute instantiate 14 --label wasmbet_casinoname141 '{"CreateCasino": {"name": "F1 Casino", "description": "come on rich","seed":"allinbiteqwe","min_bet_amount":"1000000","max_bet_rate":100000,"house_fee":15000, "founder_commission_rate": 100000}}' --from test --chain-id test
